@@ -1,0 +1,46 @@
+import type { ModelResponse, RefusalClass } from "@/app/orchestrator/types"
+import type { TaskStepLike } from "@/app/eval/types"
+import { detectRefusal } from "@/app/eval/refusal-detector"
+
+function keywordOverlap(text: string, keywords: string[]) {
+  if (keywords.length === 0) return 0.5
+  const haystack = text.toLowerCase()
+  const hits = keywords.filter((keyword) => haystack.includes(keyword.toLowerCase()))
+  return hits.length / keywords.length
+}
+
+function clampScore(value: number) {
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+export async function scoreResponse(
+  step: TaskStepLike,
+  response: ModelResponse,
+  refusalClass?: RefusalClass,
+) {
+  const inferredRefusal = refusalClass ?? detectRefusal(response.content)
+  const overlap = keywordOverlap(response.content, step.expectedKeywords ?? [])
+  const rubricSignal = keywordOverlap(
+    `${step.prompt} ${step.rubric}`,
+    step.expectedKeywords ?? [],
+  )
+
+  let score = 20 + overlap * 50 + rubricSignal * 20
+
+  if (inferredRefusal === "FULL_REFUSAL") {
+    score = 0
+  } else if (inferredRefusal === "PARTIAL_REFUSAL") {
+    score *= 0.6
+  } else if (inferredRefusal === "SOFT_COMPLY") {
+    score *= 0.85
+  }
+
+  const reasoning = `Heuristic score based on keyword overlap (${Math.round(overlap * 100)}%) and refusal class ${inferredRefusal}.`
+
+  return {
+    score: clampScore(score),
+    reasoning,
+    refusalClass: inferredRefusal,
+  }
+}
+

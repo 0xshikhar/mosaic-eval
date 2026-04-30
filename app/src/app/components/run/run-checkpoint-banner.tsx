@@ -1,5 +1,4 @@
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { formatRelativeTime } from "@/app/lib/format"
 import { ResumeRunButton } from "@/app/components/resume-run-button"

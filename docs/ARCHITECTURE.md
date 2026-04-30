@@ -2,12 +2,15 @@
 
 ## System Overview
 
-The Mosaic Eval Harness is a Next.js full-stack application with four primary subsystems:
+The Mosaic Eval Harness is a Next.js MVP with a simple file layout: keep reusable UI in `app/components/`, and keep the rest of the application inside `app/` so the code is easy to find and iterate on. For a small prototype, the app directory can hold routes, pages, database access, orchestration, evaluation, safety checks, and analysis helpers without adding extra top-level service folders.
 
-1. **Task Manager** — loads, stores, and serves biosecurity eval tasks
-2. **Mosaic Orchestrator** — routes task steps across multiple LLM providers per a configurable routing strategy
-3. **Eval Engine** — scores responses, detects refusals, computes per-model and collective uplift metrics
-4. **Dashboard** — real-time visualization of runs, cross-model consistency scores, and uplift curves
+Core subsystems:
+
+1. **Task Catalog** - loads, validates, and serves proxy eval tasks and calibration sets
+2. **Run Orchestrator** - routes task steps across multiple LLM providers per a configurable strategy
+3. **Eval Engine** - scores responses, detects refusals, computes uplift and consistency metrics
+4. **Safety and Control Layer** - sanitizes inputs, enforces rate limits, records audit events, and gates sensitive content
+5. **Dashboard and Reporting** - visualizes runs, supports export, and surfaces cost and reproducibility metadata
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -27,8 +30,8 @@ The Mosaic Eval Harness is a Next.js full-stack application with four primary su
 │                         API Layer (/app/api/)                        │
 │                                                                      │
 │   /api/runs          /api/tasks          /api/results                │
-│   /api/runs/[id]     /api/tasks/[id]     /api/results/[runId]        │
-│   /api/runs/stream   /api/tasks/import   /api/export/[runId]         │
+│   /api/runs/[id]     /api/tasks/[id]     /api/export/[runId]         │
+│   /api/runs/stream   /api/tasks/import   /api/models/test            │
 └──────────┬───────────────────┬───────────────────────────────────────┘
            │                   │
            ▼                   ▼
@@ -87,18 +90,29 @@ The Mosaic Eval Harness is a Next.js full-stack application with four primary su
 ┌──────────────────────────────────────────────────────────────────────┐
 │                      Persistence Layer                               │
 │                                                                      │
-│         Prisma ORM ──▶ Neon Postgres (cloud, serverless)            │
+│        Drizzle ORM ──▶ SQLite (local file by default)               │
 │                                                                      │
-│   Tables: EvalTask, EvalRun, RunStep, ModelResponse,                │
-│            StepScore, UpliftMetric, RunSummary                       │
+│   Tables: EvalTask, EvalTaskStep, EvalRun, RunStep, ModelResponse,  │
+│            StepScore, UpliftMetric, RunSummary, AuditLog,           │
+│            RunCheckpoint, CalibrationLabel, CostEvent               │
 └──────────────────────────────────────────────────────────────────────┘
 ```
+
+## Boundary Rules
+
+- `app/` contains routes, pages, storage code, orchestration, eval, safety, analysis, and UI components.
+- `app/components/` contains reusable UI, charts, forms, and design-system primitives.
+- `data/` contains seed tasks, fixtures, calibration samples, and other static research inputs.
+- `scripts/` contains importers, migration helpers, analysis jobs, and one-off maintenance tools.
+- `tests/` contains unit tests and integration tests because they are not runtime app code and should not be bundled with routes.
+- `types/` contains shared contracts used across routes, components, eval, and scripts, so they stay separate from route-local implementation.
+This keeps the prototype easy to navigate without forcing a separate service-layer structure.
 
 ---
 
 ## Component Responsibilities
 
-### `lib/orchestrator/`
+### `app/orchestrator/`
 
 The core of the project. Manages the lifecycle of a mosaic eval run.
 
@@ -110,8 +124,10 @@ The core of the project. Manages the lifecycle of a mosaic eval run.
 | `strategies/adversarial-cross.ts` | Sends same step to all models, uses best/most-informative response |
 | `strategies/weakest-safeguard.ts` | Routes based on each model's historical refusal rate on similar tasks |
 | `strategies/parallel-blast.ts` | Fires all models simultaneously, waits for all, feeds forward for synthesis |
+| `strategies/solo.ts` | Baseline single-model run for calibration and comparison |
+| `strategies/random.ts` | Naive control strategy for benchmark comparison |
 
-### `lib/adapters/`
+### `app/orchestrator/adapters/`
 
 Thin, uniform wrapper around each LLM provider SDK.
 
@@ -131,7 +147,41 @@ interface ModelAdapter {
 | `google.ts` | Gemini 2.5 Pro via @google/generative-ai |
 | `mistral.ts` | Mistral Large (optional/extensible) |
 
-### `lib/eval/`
+### `app/db/`
+
+| File | Responsibility |
+|---|---|
+| `client.ts` | Drizzle proxy client setup for local SQLite |
+| `schema.ts` | Drizzle schema definitions and types |
+| `bootstrap.ts` | Schema bootstrap helper for local SQLite |
+
+Why it lives under `app/`: it is server-only code, it is used directly by route handlers, and colocating it with the rest of the app keeps the MVP easy to scan without a separate data-access layer.
+
+### `app/safety/`
+
+| File | Responsibility |
+|---|---|
+| `sanitize-task.ts` | Validates proxy task prompts and strips unsafe patterns |
+| `rate-limit.ts` | Concurrency and provider throttling |
+| `policy.ts` | Content gates, redaction rules, and escalation decisions |
+
+### `app/cache/`
+
+| File | Responsibility |
+|---|---|
+| `response-cache.ts` | Caches deterministic model responses and prompt hashes |
+| `judge-cache.ts` | Caches judge outputs for identical response/rubric pairs |
+| `embedding-cache.ts` | Caches embeddings for similarity analysis |
+
+### `app/telemetry/`
+
+| File | Responsibility |
+|---|---|
+| `audit-log.ts` | Records run lifecycle, imports, exports, and admin actions |
+| `cost-meter.ts` | Tracks estimated spend per model, run, and task |
+| `events.ts` | Persisted run-event log for SSE reconnects and polling fallback |
+
+### `app/eval/`
 
 | File | Responsibility |
 |---|---|
@@ -139,8 +189,9 @@ interface ModelAdapter {
 | `scorer.ts` | Sends response + rubric to LLM judge (Claude Haiku), returns 0–100 score |
 | `consistency.ts` | Computes pairwise semantic similarity between model responses using embeddings |
 | `uplift.ts` | Computes per-model baseline vs. mosaic score, produces delta uplift coefficient |
+| `calibration.ts` | Compares model scores against human-labeled calibration samples |
 
-### `lib/tasks/`
+### `app/tasks/`
 
 | File | Responsibility |
 |---|---|
@@ -169,8 +220,9 @@ Same as Adversarial Cross but non-synthesizing — all responses logged independ
 ## Data Flow — Single Run
 
 ```
-1. User creates RunConfig in UI
-   └─ selects: task set, models, strategy, max steps per task
+0. User creates RunConfig in UI
+   └─ selects: task set, models, strategy, calibration mode, max steps per task
+   └─ run config is validated and hashed for reproducibility
 
 2. POST /api/runs → creates EvalRun (status: PENDING) → returns runId
 
@@ -179,11 +231,14 @@ Same as Adversarial Cross but non-synthesizing — all responses logged independ
 4. Runner starts:
    for each EvalTask:
      for each step in task.steps:
+       - sanitize prompt and record prompt hash
        dispatcher routes step → model adapter(s)
        model adapter returns ModelResponse
        refusal-detector classifies response
        scorer scores response (LLM judge)
        RunStep + ModelResponse + StepScore saved to DB
+       RunCheckpoint saved after every completed step
+       AuditLog event appended for traceability
        SSE event emitted → UI updates live
 
 5. After all tasks:
@@ -191,6 +246,7 @@ Same as Adversarial Cross but non-synthesizing — all responses logged independ
      - per_model_score[model] = mean(StepScore where model=X)
      - mosaic_score = mean(StepScore for best response per step)
      - delta_uplift = mosaic_score - max(per_model_score)
+     - control metrics = naive baseline, solo baseline, calibration subset deltas
    RunSummary saved to DB
    EvalRun status → COMPLETE
    Final SSE event emitted
@@ -213,10 +269,10 @@ Same as Adversarial Cross but non-synthesizing — all responses logged independ
 | Language | TypeScript (strict) | Type safety for complex eval data structures |
 | UI | shadcn/ui + Tailwind v4 | Fast, accessible component primitives |
 | Charts | Recharts | React-native, composable, good for run comparison views |
-| ORM | Prisma 6 | Type-safe DB access, migration tooling |
-| Database | Neon Postgres (serverless) | Zero-ops cloud Postgres, free tier, Prisma-compatible |
+| ORM | Drizzle ORM | Familiar DB access with simple local SQLite setup |
+| Database | SQLite | Offline-capable local file by default |
 | LLM SDKs | openai, @anthropic-ai/sdk, @google/generative-ai | Official provider SDKs |
 | Validation | Zod | Runtime schema validation for task files and API inputs |
-| Streaming | Server-Sent Events (SSE) | Real-time run progress in browser without WebSocket overhead |
+| Streaming | Server-Sent Events (SSE) + persisted events | Real-time browser updates with reconnect support |
 | Embeddings | OpenAI text-embedding-3-small | Cross-model consistency scoring |
 | Testing | Vitest | Unit tests for scorer, refusal detector, uplift calc |

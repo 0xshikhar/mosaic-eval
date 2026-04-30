@@ -1,6 +1,6 @@
 # API Specification — Mosaic Eval Harness
 
-All routes are Next.js App Router API routes under `/app/api/`. All request/response bodies are JSON. All routes return appropriate HTTP status codes with `{ error: string }` on failure.
+All routes are Next.js App Router API routes under `/app/api/`. The app is backed by local-first SQLite storage through Drizzle ORM. All request/response bodies are JSON unless noted otherwise. All routes return appropriate HTTP status codes with `{ error: string }` on failure.
 
 ---
 
@@ -81,11 +81,58 @@ List all eval runs with optional filters.
 
 Get full run data with steps, responses, and summary.
 
+**Response: `200 OK`**
+```typescript
+{
+  run: EvalRun & {
+    steps: Array<RunStep & {
+      modelResponses: ModelResponse[]
+      score: StepScore | null
+    }>
+    summary: RunSummary | null
+  }
+}
+```
+
 ---
 
 ### `DELETE /api/runs/[id]`
 
 Cancel a running run or delete a completed run. Cascades deletes.
+
+---
+
+### `POST /api/runs/[id]/resume`
+
+Resume a checkpointed or interrupted run from the last completed step.
+
+**Response:**
+```typescript
+{ runId: string; status: 'RUNNING' | 'PENDING' }
+```
+
+---
+
+### `GET /api/runs/[id]/events`
+
+Return the persisted event history for a run so clients can reconnect after an SSE interruption.
+
+**Response:**
+```typescript
+{ events: RunEvent[] }
+```
+
+---
+
+### `GET /api/runs/[id]/audit`
+
+Return the audit log entries associated with a run.
+
+---
+
+### `GET /api/runs/[id]/costs`
+
+Return the cost accounting summary for a run and its model invocations.
 
 ---
 
@@ -136,8 +183,3 @@ Test a model adapter. **Body:** `{ modelId: string }`
 ```
 
 Codes: `INVALID_INPUT`, `NOT_FOUND`, `MODEL_UNAVAILABLE`, `RUN_IN_PROGRESS`, `DB_ERROR`
-DOCEOF
-echo "API_SPEC.md written"
-API_SPEC.md written
-Here are your complete implementation plan docs. Let me finish the last doc and wrap up.
-

@@ -1,5 +1,7 @@
 # SQLite Architecture Proposal — Mosaic Eval Harness
 
+This document is retained as a tradeoff note for a more elaborate storage migration. The MVP architecture now uses Drizzle + local SQLite for simplicity. Treat the older Drizzle/libSQL path below as an alternative future option, not the current baseline.
+
 ## Executive Summary
 
 This document proposes replacing **Prisma + Neon Postgres** with **Drizzle ORM + libSQL** (SQLite fork) for the Mosaic Eval Harness. This change addresses 8+ identified flaws while improving developer experience, performance, and offline capability.

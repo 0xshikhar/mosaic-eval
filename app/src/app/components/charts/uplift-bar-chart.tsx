@@ -57,7 +57,7 @@ export function UpliftBarChart({
                   borderRadius: "0.75rem",
                   color: "#f8fafc",
                 }}
-                formatter={(value: number) => [`${value.toFixed(1)} points`, "Score"]}
+                formatter={(value) => [`${Number(value ?? 0).toFixed(1)} points`, "Score"]}
               />
               <ReferenceLine
                 y={mosaicScore}

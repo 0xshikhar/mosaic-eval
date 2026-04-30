@@ -45,7 +45,7 @@ export function UpliftCurve({ data }: { data: DifficultyPoint[] }) {
               <YAxis
                 tick={{ fill: "#d4d4d8", fontSize: 12 }}
                 axisLine={{ stroke: "rgba(255,255,255,0.15)" }}
-                tickFormatter={(value) => `${value.toFixed(0)}`}
+                tickFormatter={(value) => `${Number(value).toFixed(0)}`}
               />
               <Tooltip
                 cursor={{ stroke: "rgba(255,255,255,0.15)" }}
@@ -55,7 +55,7 @@ export function UpliftCurve({ data }: { data: DifficultyPoint[] }) {
                   borderRadius: "0.75rem",
                   color: "#f8fafc",
                 }}
-                formatter={(value: number) => [`${value.toFixed(1)} points`, "Uplift"]}
+                formatter={(value) => [`${Number(value ?? 0).toFixed(1)} points`, "Uplift"]}
                 labelFormatter={(label) => `Difficulty ${label}`}
               />
               <ReferenceLine y={0} stroke="#64748b" strokeDasharray="4 4" />

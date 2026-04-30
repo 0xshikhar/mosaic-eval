@@ -145,9 +145,12 @@ export async function executeRun(runId: string, config: RunConfig) {
               const refusalClass = detectRefusal(response.content)
               const scored = await scoreResponse(
                 {
+                  id: step.id,
+                  taskId: task.id,
                   prompt: sanitizedPrompt,
                   rubric: step.rubric,
                   expectedKeywords: step.expectedKeywords,
+                  calibrationTag: step.calibrationTag,
                 },
                 response,
                 refusalClass,

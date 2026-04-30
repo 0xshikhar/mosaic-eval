@@ -1,4 +1,6 @@
 import type { ModelResponse, RefusalClass } from "@/app/orchestrator/types"
+import { applyCalibration, getCalibrationSummary } from "@/app/eval/calibration"
+import { getCachedJudgeResult, storeJudgeResult } from "@/app/eval/judge-cache"
 import type { TaskStepLike } from "@/app/eval/types"
 import { detectRefusal } from "@/app/eval/refusal-detector"
 
@@ -19,6 +21,29 @@ export async function scoreResponse(
   refusalClass?: RefusalClass,
 ) {
   const inferredRefusal = refusalClass ?? detectRefusal(response.content)
+  const judgeModelId = process.env.JUDGE_MODEL ?? "heuristic-judge"
+  const cached = await getCachedJudgeResult({
+    judgeModelId,
+    modelId: response.modelId,
+    taskStepId: step.id ?? null,
+    prompt: step.prompt,
+    rubric: step.rubric,
+    expectedKeywords: step.expectedKeywords ?? [],
+    responseContent: response.content,
+    responseModelVersion: response.modelVersion ?? null,
+    refusalClass: inferredRefusal,
+  })
+
+  if (cached) {
+    return {
+      score: cached.score,
+      reasoning: `${cached.reasoning} (cache hit)`,
+      refusalClass: cached.refusalClass,
+      cached: true,
+      calibrationApplied: cached.calibrationApplied,
+    }
+  }
+
   const overlap = keywordOverlap(response.content, step.expectedKeywords ?? [])
   const rubricSignal = keywordOverlap(
     `${step.prompt} ${step.rubric}`,
@@ -35,12 +60,50 @@ export async function scoreResponse(
     score *= 0.85
   }
 
-  const reasoning = `Heuristic score based on keyword overlap (${Math.round(overlap * 100)}%) and refusal class ${inferredRefusal}.`
+  const calibration = await getCalibrationSummary(step.id, "score")
+  const calibrated = applyCalibration(score, calibration)
+  score = calibrated.score
+
+  const reasoningParts = [
+    `Heuristic score based on keyword overlap (${Math.round(overlap * 100)}%)`,
+    `and refusal class ${inferredRefusal}.`,
+  ]
+
+  if (calibrated.applied && calibrated.summary) {
+    reasoningParts.push(
+      `Applied calibration from ${calibrated.summary.sampleCount} labeled sample${calibrated.summary.sampleCount === 1 ? "" : "s"} at weight ${Math.round(
+        calibrated.weight * 100,
+      )}%.`,
+    )
+  }
+
+  const reasoning = reasoningParts.join(" ")
+
+  await storeJudgeResult(
+    {
+      judgeModelId,
+      modelId: response.modelId,
+      taskStepId: step.id ?? null,
+      prompt: step.prompt,
+      rubric: step.rubric,
+      expectedKeywords: step.expectedKeywords ?? [],
+      responseContent: response.content,
+      responseModelVersion: response.modelVersion ?? null,
+      refusalClass: inferredRefusal,
+    },
+    {
+      score,
+      reasoning,
+      refusalClass: inferredRefusal,
+      calibrationApplied: calibrated.applied,
+    },
+  )
 
   return {
     score: clampScore(score),
     reasoning,
     refusalClass: inferredRefusal,
+    cached: false,
+    calibrationApplied: calibrated.applied,
   }
 }
-

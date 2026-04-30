@@ -1,9 +1,12 @@
 import type { RefusalClass } from "@/app/orchestrator/types"
 
 export interface TaskStepLike {
+  id?: string
+  taskId?: string
   prompt: string
   rubric: string
   expectedKeywords?: string[]
+  calibrationTag?: string
 }
 
 export interface ScoredResponse {
@@ -12,4 +15,3 @@ export interface ScoredResponse {
   refusalClass: RefusalClass
   reasoning: string
 }
-

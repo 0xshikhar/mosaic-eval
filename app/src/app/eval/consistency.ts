@@ -14,8 +14,20 @@ function jaccard(a: Set<string>, b: Set<string>) {
   return union === 0 ? 0 : intersection / union
 }
 
+function mean(values: number[]) {
+  return values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length
+}
+
+function standardDeviation(values: number[]) {
+  if (values.length < 2) return 0
+  const avg = mean(values)
+  const variance = mean(values.map((value) => (value - avg) ** 2))
+  return Math.sqrt(variance)
+}
+
 export function analyzeConsistency(responses: Array<{ content: string; modelId: string }>) {
   const matrix: Record<string, Record<string, number>> = {}
+  const modelIds = responses.map((response) => response.modelId)
 
   for (const left of responses) {
     matrix[left.modelId] = {}
@@ -26,9 +38,24 @@ export function analyzeConsistency(responses: Array<{ content: string; modelId: 
     }
   }
 
-  const pairwise = Object.values(matrix).flatMap((row) => Object.values(row))
-  const consistencyScore = pairwise.length ? pairwise.reduce((sum, value) => sum + value, 0) / pairwise.length : 0
+  const pairwise = responses.flatMap((left, leftIndex) =>
+    responses
+      .map((right, rightIndex) => {
+        if (leftIndex >= rightIndex) return null
+        return jaccard(tokenize(left.content), tokenize(right.content))
+      })
+      .filter((value): value is number => value !== null),
+  )
+  const consistencyScore = pairwise.length > 0 ? mean(pairwise) : 1
 
-  return { matrix, consistencyScore }
+  return {
+    matrix,
+    pairwiseScores: pairwise,
+    consistencyScore,
+    meanPairwiseSimilarity: consistencyScore,
+    minPairwiseSimilarity: pairwise.length > 0 ? Math.min(...pairwise) : 1,
+    maxPairwiseSimilarity: pairwise.length > 0 ? Math.max(...pairwise) : 1,
+    spread: standardDeviation(pairwise),
+    modelIds,
+  }
 }
-

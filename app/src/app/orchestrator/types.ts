@@ -73,11 +73,17 @@ export type RunEvent =
   | (RunEventBase & {
       type: "step_dispatched"
       stepId: string
+      taskId: string
+      taskTitle: string
+      stepIndex: number
       modelIds: string[]
     })
   | (RunEventBase & {
       type: "step_complete"
       stepId: string
+      taskId: string
+      taskTitle: string
+      stepIndex: number
       bestScore: number
       bestModelId: string
       refusalClass: RefusalClass
@@ -85,6 +91,7 @@ export type RunEvent =
   | (RunEventBase & {
       type: "task_complete"
       taskId: string
+      taskTitle: string
       taskScore: number
     })
   | (RunEventBase & {
@@ -99,4 +106,3 @@ export type RunEvent =
       type: "run_error"
       message: string
     })
-

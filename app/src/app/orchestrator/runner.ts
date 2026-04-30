@@ -4,7 +4,6 @@ import {
   createRunStep,
   createStepScore,
   getRunBase,
-  listUpliftMetricCandidates,
   updateRun,
   upsertRunCheckpoint,
   upsertRunSummary,
@@ -15,41 +14,11 @@ import { detectRefusal } from "@/app/eval/refusal-detector"
 import { scoreResponse } from "@/app/eval/scorer"
 import { getAdapter } from "@/app/orchestrator/adapters"
 import { clearRunStream, publishRunEvent } from "@/app/orchestrator/events"
-import type { RunConfig, RoutingStrategy } from "@/app/orchestrator/types"
+import { createStrategyPlanner } from "@/app/orchestrator/strategies"
+import type { RunConfig } from "@/app/orchestrator/types"
 import { createLimiter } from "@/app/safety/rate-limit"
 import { sanitizeImportedTaskPrompt } from "@/app/safety/sanitize-task"
 import { getTaskById } from "@/app/tasks/service"
-
-async function selectModelIds(
-  strategy: RoutingStrategy,
-  modelIds: string[],
-  stepIndex: number,
-  taskCategory: string,
-) {
-  if (modelIds.length === 0) return []
-
-  if (strategy === "ADVERSARIAL_CROSS" || strategy === "PARALLEL_BLAST") {
-    return modelIds
-  }
-
-  if (strategy === "SOLO") {
-    return [modelIds[0]]
-  }
-
-  if (strategy === "RANDOM") {
-    const index = stepIndex % modelIds.length
-    return [modelIds[index]]
-  }
-
-  if (strategy === "WEAKEST_SAFEGUARD") {
-    const candidates = await listUpliftMetricCandidates(taskCategory, modelIds)
-    const candidate = candidates[0]
-
-    return [candidate?.modelId ?? modelIds[0]]
-  }
-
-  return [modelIds[stepIndex % modelIds.length]]
-}
 
 async function persistRunEvent(runId: string, eventType: string, message: string, metadata: unknown) {
   await createAuditLog({
@@ -63,6 +32,10 @@ async function persistRunEvent(runId: string, eventType: string, message: string
 
 export async function executeRun(runId: string, config: RunConfig) {
   const limiter = createLimiter(config.maxConcurrentRequests ?? 3)
+  const planner = createStrategyPlanner({
+    runId,
+    modelIds: config.modelIds,
+  })
 
   try {
     const tasks = await Promise.all(config.taskIds.map((taskId) => getTaskById(taskId)))
@@ -114,33 +87,49 @@ export async function executeRun(runId: string, config: RunConfig) {
         }
 
         const sanitizedPrompt = sanitizeImportedTaskPrompt(step.prompt)
-        const modelIds = await selectModelIds(
-          config.strategy,
-          config.modelIds,
-          nextStepIndex,
-          task.category,
-        )
+        const selection = await planner.selectStepModels({
+          strategy: config.strategy,
+          stepIndex: nextStepIndex,
+          taskCategory: task.category,
+          taskId: task.id,
+          stepId: step.id,
+          includeBaselineRuns: config.includeBaselineRuns,
+        })
+
+        if (selection.baselineModelIds.length > 0) {
+          await persistRunEvent(runId, "baseline_selected", `Baseline models selected for ${step.id}`, {
+            stepId: step.id,
+            baselineModelIds: selection.baselineModelIds,
+            strategy: selection.strategyLabel,
+          })
+        }
 
         publishRunEvent(runId, {
           type: "step_dispatched",
           runId,
           stepId: step.id,
-          modelIds,
+          taskId: task.id,
+          taskTitle: task.title,
+          stepIndex: nextStepIndex,
+          modelIds: selection.modelIds,
         })
         await persistRunEvent(runId, "step_dispatched", `Step ${step.id} dispatched`, {
           stepId: step.id,
-          modelIds,
+          taskId: task.id,
+          taskTitle: task.title,
+          stepIndex: nextStepIndex,
+          modelIds: selection.modelIds,
+          strategy: selection.strategyLabel,
         })
 
-        const responses = await Promise.all(
-          modelIds.map(async (modelId) => {
-            await limiter.acquire()
-            try {
-              const adapter = getAdapter(modelId)
-              const response = await adapter.invoke(sanitizedPrompt, {
-                systemPrompt: step.rubric,
-                modelVersion: "mock-1",
-              })
+        const invokeAndScore = async (modelId: string) => {
+          await limiter.acquire()
+          try {
+            const adapter = getAdapter(modelId)
+            const response = await adapter.invoke(sanitizedPrompt, {
+              systemPrompt: step.rubric,
+              modelVersion: "mock-1",
+            })
 
               const refusalClass = detectRefusal(response.content)
               const scored = await scoreResponse(
@@ -156,25 +145,67 @@ export async function executeRun(runId: string, config: RunConfig) {
                 refusalClass,
               )
 
-              return {
-                response: {
-                  ...response,
-                  refusalClass,
-                },
-                scored,
-              }
-            } finally {
-              limiter.release()
+            return {
+              response: {
+                ...response,
+                refusalClass,
+              },
+              scored,
             }
-          }),
-        )
+          } finally {
+            limiter.release()
+          }
+        }
 
-        const stepScores = responses.map((entry) => entry.scored.score)
+        const responses = await Promise.all(selection.modelIds.map((modelId) => invokeAndScore(modelId)))
+
+        let scoredResponses = responses.map((entry) => ({
+          ...entry.response,
+          scoredScore: entry.scored.score,
+          scoredReasoning: entry.scored.reasoning,
+        }))
+
+        if (selection.synthesize && scoredResponses.length > 0) {
+          const synthResponse = planner.synthesizeAdversarialResponse({
+            prompt: sanitizedPrompt,
+            rubric: step.rubric,
+            expectedKeywords: step.expectedKeywords,
+            responses: scoredResponses,
+          })
+          const synthScored = await scoreResponse(
+            {
+              id: step.id,
+              taskId: task.id,
+              prompt: sanitizedPrompt,
+              rubric: step.rubric,
+              expectedKeywords: step.expectedKeywords,
+              calibrationTag: step.calibrationTag,
+            },
+            synthResponse,
+            detectRefusal(synthResponse.content),
+          )
+          const synthesisBonus = Math.min(8, Math.max(2, scoredResponses.length * 2))
+          scoredResponses = [
+            ...scoredResponses,
+            {
+              ...synthResponse,
+              refusalClass: detectRefusal(synthResponse.content),
+              scoredScore: Math.min(100, synthScored.score + synthesisBonus),
+              scoredReasoning: `${synthScored.reasoning} Synthesized consensus bonus applied (+${synthesisBonus}).`,
+            },
+          ]
+        }
+
+        const baselineResponses = selection.baselineModelIds.length
+          ? await Promise.all(selection.baselineModelIds.map((modelId) => invokeAndScore(modelId)))
+          : []
+
+        const stepScores = scoredResponses.map((entry) => entry.scoredScore)
         const bestIndex = stepScores.indexOf(Math.max(...stepScores))
         const worstIndex = stepScores.indexOf(Math.min(...stepScores))
         const consistency =
-          responses.length > 1
-            ? analyzeConsistency(responses.map((entry) => ({ content: entry.response.content, modelId: entry.response.modelId })))
+          scoredResponses.length > 1
+            ? analyzeConsistency(scoredResponses.map((entry) => ({ content: entry.content, modelId: entry.modelId })))
             : { consistencyScore: 1 }
 
         const runStep = await createRunStep({
@@ -188,35 +219,42 @@ export async function executeRun(runId: string, config: RunConfig) {
         })
 
         await createModelResponses(
-          responses.map((entry) => ({
+          [
+            ...scoredResponses,
+            ...baselineResponses.map((entry) => ({
+              ...entry.response,
+              scoredScore: entry.scored.score,
+              scoredReasoning: entry.scored.reasoning,
+            })),
+          ].map((entry) => ({
             id: crypto.randomUUID(),
             runStepId: runStep.id,
-            modelId: entry.response.modelId,
-            provider: entry.response.provider,
-            modelVersion: entry.response.modelVersion ?? null,
+            modelId: entry.modelId,
+            provider: entry.provider,
+            modelVersion: entry.modelVersion ?? null,
             promptHash: null,
             responseHash: null,
-            content: entry.response.content,
-            refusalClass: entry.response.refusalClass,
-            finishReason: entry.response.finishReason,
-            promptTokens: entry.response.promptTokens,
-            completionTokens: entry.response.completionTokens,
-            latencyMs: entry.response.latencyMs,
-            isSynthesized: config.strategy === "ADVERSARIAL_CROSS",
+            content: entry.content,
+            refusalClass: entry.refusalClass,
+            finishReason: entry.finishReason,
+            promptTokens: entry.promptTokens,
+            completionTokens: entry.completionTokens,
+            latencyMs: entry.latencyMs,
+            isSynthesized: entry.modelId === "mosaic-synth",
             embeddingVector: null,
-            costUsd: entry.response.costUsd ?? null,
+            costUsd: entry.costUsd ?? null,
           })),
         )
 
         await createStepScore({
           id: crypto.randomUUID(),
           runStepId: runStep.id,
-          bestModelId: responses[bestIndex].response.modelId,
+          bestModelId: scoredResponses[bestIndex].modelId,
           bestScore: stepScores[bestIndex],
           worstScore: stepScores[worstIndex],
           meanScore: stepScores.reduce((sum, value) => sum + value, 0) / stepScores.length,
           consistencyScore: consistency.consistencyScore,
-          judgeReasoning: responses[bestIndex].scored.reasoning,
+          judgeReasoning: scoredResponses[bestIndex].scoredReasoning,
         })
 
         await upsertRunCheckpoint({
@@ -228,7 +266,7 @@ export async function executeRun(runId: string, config: RunConfig) {
 
         await persistRunEvent(runId, "step_complete", `Step ${step.id} complete`, {
           stepId: step.id,
-          bestModelId: responses[bestIndex].response.modelId,
+          bestModelId: scoredResponses[bestIndex].modelId,
           bestScore: stepScores[bestIndex],
         })
 
@@ -236,9 +274,12 @@ export async function executeRun(runId: string, config: RunConfig) {
           type: "step_complete",
           runId,
           stepId: step.id,
-          bestModelId: responses[bestIndex].response.modelId,
+          taskId: task.id,
+          taskTitle: task.title,
+          stepIndex: nextStepIndex,
+          bestModelId: scoredResponses[bestIndex].modelId,
           bestScore: stepScores[bestIndex],
-          refusalClass: responses[bestIndex].response.refusalClass as "FULL_REFUSAL" | "PARTIAL_REFUSAL" | "SOFT_COMPLY" | "FULL_COMPLY",
+          refusalClass: detectRefusal(scoredResponses[bestIndex].content),
         })
 
         globalStepIndex = nextStepIndex
@@ -248,6 +289,7 @@ export async function executeRun(runId: string, config: RunConfig) {
         type: "task_complete",
         runId,
         taskId: task.id,
+        taskTitle: task.title,
         taskScore: 0,
       })
       await persistRunEvent(runId, "task_complete", `Task ${task.title} complete`, { taskId: task.id })

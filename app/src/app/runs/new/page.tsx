@@ -34,9 +34,33 @@ export default async function NewRunPage() {
       }
     >
       <div className="grid gap-6">
-        <div className="grid gap-2 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-400">
-          <div className="font-medium text-white">Model adapters available</div>
-          <div>{models.map((model) => titleCase(model.id)).join(", ")}</div>
+        <div className="grid gap-4 rounded-xl border border-white/10 bg-black/20 p-4 text-sm text-zinc-300">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div className="font-medium text-white">Model adapters available</div>
+              <div className="mt-1 text-zinc-400">
+                {models.filter((model) => model.available).length} ready,{" "}
+                {models.filter((model) => !model.available).length} need setup.
+              </div>
+            </div>
+            <Link href="/models" className="text-emerald-300 underline underline-offset-4">
+              Open model setup and test panel
+            </Link>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {models.map((model) => (
+              <span
+                key={model.id}
+                className={`rounded-full border px-3 py-1 text-xs uppercase tracking-[0.18em] ${
+                  model.available
+                    ? "border-emerald-400/20 bg-emerald-400/10 text-emerald-100"
+                    : "border-white/10 bg-white/5 text-zinc-400"
+                }`}
+              >
+                {titleCase(model.id)} {model.available ? "ready" : "setup needed"}
+              </span>
+            ))}
+          </div>
         </div>
         <RunComposer tasks={taskOptions} models={models} />
       </div>

@@ -1,4 +1,4 @@
-import { getRunDetail } from "@/app/db/store"
+import { getRunDetail, replaceUpliftMetricsForRun } from "@/app/db/store"
 
 export async function computeUplift(runId: string) {
   const run = await getRunDetail(runId)
@@ -11,6 +11,18 @@ export async function computeUplift(runId: string) {
   const perCategoryScores: Record<string, number[]> = {}
   const perDifficultyScores: Record<number, number[]> = {}
   const refusalBreakdown: Record<string, number> = {}
+  const upliftMetricGroups = new Map<
+    string,
+    {
+      modelId: string
+      category: string
+      difficulty: number
+      refusalCount: number
+      responseCount: number
+      winningScoreSum: number
+      winningScoreCount: number
+    }
+  >()
   let totalCost = 0
 
   for (const step of run.steps) {
@@ -34,6 +46,40 @@ export async function computeUplift(runId: string) {
       }
 
       totalCost += response.costUsd ?? 0
+
+      const categoryKey = `${response.modelId}:${category}`
+      const difficultyKey = `${response.modelId}:${difficulty}`
+
+      for (const key of [categoryKey, difficultyKey]) {
+        const current = upliftMetricGroups.get(key) ?? {
+          modelId: response.modelId,
+          category,
+          difficulty,
+          refusalCount: 0,
+          responseCount: 0,
+          winningScoreSum: 0,
+          winningScoreCount: 0,
+        }
+
+        current.responseCount += 1
+        if (response.refusalClass !== "FULL_COMPLY") {
+          current.refusalCount += 1
+        }
+        upliftMetricGroups.set(key, current)
+      }
+    }
+
+    const categoryKey = `${bestModelId}:${category}`
+    const difficultyKey = `${bestModelId}:${difficulty}`
+    const bestCategory = upliftMetricGroups.get(categoryKey)
+    if (bestCategory) {
+      bestCategory.winningScoreSum += score
+      bestCategory.winningScoreCount += 1
+    }
+    const bestDifficulty = upliftMetricGroups.get(difficultyKey)
+    if (bestDifficulty) {
+      bestDifficulty.winningScoreSum += score
+      bestDifficulty.winningScoreCount += 1
     }
   }
 
@@ -65,6 +111,20 @@ export async function computeUplift(runId: string) {
 
   const leader = Math.max(...Object.values(perModelMean), 0)
   const deltaUplift = runMean - leader
+
+  await replaceUpliftMetricsForRun(
+    runId,
+    [...upliftMetricGroups.values()].map((group) => ({
+      id: crypto.randomUUID(),
+      runId,
+      modelId: group.modelId,
+      category: group.category,
+      difficulty: group.difficulty,
+      refusalRate: group.responseCount === 0 ? 0 : group.refusalCount / group.responseCount,
+      meanScore: group.winningScoreCount === 0 ? 0 : group.winningScoreSum / group.winningScoreCount,
+      sampleCount: group.responseCount,
+    })),
+  )
 
   return {
     perModelScores: perModelMean,

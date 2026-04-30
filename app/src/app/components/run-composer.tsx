@@ -27,6 +27,8 @@ type ModelOption = {
   id: string
   displayName: string
   provider: string
+  available: boolean
+  setupHint: string
 }
 
 const strategies = [
@@ -50,8 +52,12 @@ export function RunComposer({
   const [name, setName] = useState(`Mosaic run ${new Date().toLocaleDateString("en-US")}`)
   const [strategy, setStrategy] = useState<(typeof strategies)[number]["id"]>("ROUND_ROBIN")
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>(tasks.map((task) => task.id))
-  const [selectedModelIds, setSelectedModelIds] = useState<string[]>(models.map((model) => model.id))
-  const [judgeModelId, setJudgeModelId] = useState(models[0]?.id ?? "mock-judge")
+  const [selectedModelIds, setSelectedModelIds] = useState<string[]>(
+    models.filter((model) => model.available).map((model) => model.id),
+  )
+  const [judgeModelId, setJudgeModelId] = useState(
+    models.find((model) => model.available)?.id ?? models[0]?.id ?? "mock-judge",
+  )
   const [includeBaseline, setIncludeBaseline] = useState(true)
   const [maxStepsPerTask, setMaxStepsPerTask] = useState("")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
@@ -68,6 +74,9 @@ export function RunComposer({
   }
 
   function toggleModel(modelId: string) {
+    const model = models.find((entry) => entry.id === modelId)
+    if (model && !model.available) return
+
     setSelectedModelIds((current) =>
       current.includes(modelId) ? current.filter((id) => id !== modelId) : [...current, modelId],
     )
@@ -85,7 +94,7 @@ export function RunComposer({
     }
 
     if (selectedModelIds.length === 0) {
-      setErrorMessage("Select at least one model.")
+      setErrorMessage("Select at least one configured model.")
       setIsSubmitting(false)
       return
     }
@@ -288,22 +297,29 @@ export function RunComposer({
                   key={model.id}
                   type="button"
                   onClick={() => toggleModel(model.id)}
+                  disabled={!model.available}
                   className={`flex items-center justify-between rounded-xl border px-4 py-3 text-left transition ${
-                    selected
+                    !model.available
+                      ? "cursor-not-allowed border-white/5 bg-black/10 opacity-60"
+                      : selected
                       ? "border-cyan-400/40 bg-cyan-400/10"
                       : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/5"
                   }`}
                 >
                   <div>
                     <div className="text-sm font-medium text-white">{model.displayName}</div>
-                    <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-                      {model.provider}
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-zinc-500">
+                      <span>{model.provider}</span>
+                      <span>·</span>
+                      <span>{model.available ? "ready" : "configure env"}</span>
                     </div>
                   </div>
                   <div
                     aria-hidden="true"
                     className={`flex size-5 items-center justify-center rounded-md border ${
-                      selected
+                      !model.available
+                        ? "border-white/10 bg-white/5 text-transparent"
+                        : selected
                         ? "border-cyan-300 bg-cyan-300 text-cyan-950"
                         : "border-white/15 bg-white/5 text-transparent"
                     }`}
@@ -346,11 +362,19 @@ export function RunComposer({
               <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-300" />
               This MVP uses proxy tasks only. Keep the public corpus aligned with the research scope.
             </p>
-            <div className="text-sm text-zinc-400">
-              Need to import tasks first?{" "}
-              <Link href="/tasks" className="text-emerald-300 underline underline-offset-4">
-                Open task library
-              </Link>
+            <div className="grid gap-2 text-sm text-zinc-400">
+              <div>
+                Need to configure a provider or test a local LM Studio server?{" "}
+                <Link href="/models" className="text-emerald-300 underline underline-offset-4">
+                  Open model setup
+                </Link>
+              </div>
+              <div>
+                Need to import tasks first?{" "}
+                <Link href="/tasks" className="text-emerald-300 underline underline-offset-4">
+                  Open task library
+                </Link>
+              </div>
             </div>
           </CardContent>
         </Card>

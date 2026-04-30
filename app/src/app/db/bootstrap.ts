@@ -154,6 +154,26 @@ export function ensureSchema(db: DatabaseSync) {
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
     );
 
+    CREATE TABLE IF NOT EXISTS judge_cache (
+      id TEXT PRIMARY KEY,
+      cache_key TEXT NOT NULL UNIQUE,
+      judge_model_id TEXT NOT NULL,
+      model_id TEXT NOT NULL,
+      task_step_id TEXT,
+      response_id TEXT,
+      prompt_hash TEXT,
+      response_hash TEXT,
+      score INTEGER NOT NULL,
+      refusal_class TEXT NOT NULL,
+      reasoning TEXT NOT NULL,
+      calibration_applied INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+    );
+
+    CREATE INDEX IF NOT EXISTS judge_cache_judge_model_idx ON judge_cache(judge_model_id);
+    CREATE INDEX IF NOT EXISTS judge_cache_model_idx ON judge_cache(model_id);
+    CREATE INDEX IF NOT EXISTS judge_cache_task_step_idx ON judge_cache(task_step_id);
+
     CREATE TABLE IF NOT EXISTS cost_events (
       id TEXT PRIMARY KEY,
       run_id TEXT REFERENCES eval_runs(id) ON DELETE CASCADE,

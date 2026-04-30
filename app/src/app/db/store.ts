@@ -3,9 +3,11 @@ import { getDb } from "@/app/db/client"
 import { parseJson, stringifyJson } from "@/app/db/json"
 import {
   auditLogs,
+  calibrationLabels,
   evalRuns,
   evalTaskSteps,
   evalTasks,
+  judgeCache,
   modelResponses,
   runCheckpoints,
   runSteps,
@@ -48,6 +50,31 @@ export type RunSummaryView = {
   meanConsistency: number
   refusalBreakdown: Record<string, number>
   estimatedCostUsd: number | null
+  createdAt: string
+}
+
+export type CalibrationLabelView = {
+  id: string
+  taskStepId: string | null
+  responseId: string | null
+  labelType: string
+  label: string
+  createdAt: string
+}
+
+export type JudgeCacheView = {
+  id: string
+  cacheKey: string
+  judgeModelId: string
+  modelId: string
+  taskStepId: string | null
+  responseId: string | null
+  promptHash: string | null
+  responseHash: string | null
+  score: number
+  refusalClass: string
+  reasoning: string
+  calibrationApplied: boolean
   createdAt: string
 }
 
@@ -563,6 +590,117 @@ export async function countAuditLogs() {
   const db = getDb()
   const rows = await db.select({ count: sql<number>`count(*)` }).from(auditLogs)
   return rows[0]?.count ?? 0
+}
+
+export async function listCalibrationLabelRows(filters?: {
+  taskStepId?: string
+  responseId?: string
+  labelType?: string
+}) {
+  const db = getDb()
+  const predicates = []
+
+  if (filters?.taskStepId) {
+    predicates.push(eq(calibrationLabels.taskStepId, filters.taskStepId))
+  }
+
+  if (filters?.responseId) {
+    predicates.push(eq(calibrationLabels.responseId, filters.responseId))
+  }
+
+  if (filters?.labelType) {
+    predicates.push(eq(calibrationLabels.labelType, filters.labelType))
+  }
+
+  const query = db.select().from(calibrationLabels)
+  const rows = predicates.length > 0
+    ? await query.where(and(...predicates)).orderBy(desc(calibrationLabels.createdAt))
+    : await query.orderBy(desc(calibrationLabels.createdAt))
+
+  return rows.map((row) => ({
+    ...row,
+    taskStepId: row.taskStepId ?? null,
+    responseId: row.responseId ?? null,
+  })) as CalibrationLabelView[]
+}
+
+export async function createCalibrationLabel(data: {
+  id: string
+  taskStepId?: string | null
+  responseId?: string | null
+  labelType: string
+  label: string
+}) {
+  const db = getDb()
+  await db.insert(calibrationLabels).values({
+    id: data.id,
+    taskStepId: data.taskStepId ?? null,
+    responseId: data.responseId ?? null,
+    labelType: data.labelType,
+    label: data.label,
+  })
+}
+
+export async function getJudgeCacheByKey(cacheKey: string) {
+  const db = getDb()
+  const [row] = await db.select().from(judgeCache).where(eq(judgeCache.cacheKey, cacheKey)).limit(1)
+  if (!row) return null
+  return {
+    ...row,
+    taskStepId: row.taskStepId ?? null,
+    responseId: row.responseId ?? null,
+    promptHash: row.promptHash ?? null,
+    responseHash: row.responseHash ?? null,
+    calibrationApplied: row.calibrationApplied,
+  } as JudgeCacheView
+}
+
+export async function upsertJudgeCacheEntry(data: {
+  id: string
+  cacheKey: string
+  judgeModelId: string
+  modelId: string
+  taskStepId?: string | null
+  responseId?: string | null
+  promptHash?: string | null
+  responseHash?: string | null
+  score: number
+  refusalClass: string
+  reasoning: string
+  calibrationApplied: boolean
+}) {
+  const db = getDb()
+  await db
+    .insert(judgeCache)
+    .values({
+      id: data.id,
+      cacheKey: data.cacheKey,
+      judgeModelId: data.judgeModelId,
+      modelId: data.modelId,
+      taskStepId: data.taskStepId ?? null,
+      responseId: data.responseId ?? null,
+      promptHash: data.promptHash ?? null,
+      responseHash: data.responseHash ?? null,
+      score: data.score,
+      refusalClass: data.refusalClass,
+      reasoning: data.reasoning,
+      calibrationApplied: data.calibrationApplied,
+    })
+    .onConflictDoUpdate({
+      target: judgeCache.cacheKey,
+      set: {
+        judgeModelId: data.judgeModelId,
+        modelId: data.modelId,
+        taskStepId: data.taskStepId ?? null,
+        responseId: data.responseId ?? null,
+        promptHash: data.promptHash ?? null,
+        responseHash: data.responseHash ?? null,
+        score: data.score,
+        refusalClass: data.refusalClass,
+        reasoning: data.reasoning,
+        calibrationApplied: data.calibrationApplied,
+      },
+    })
 }
 
 export async function listUpliftMetricCandidates(category: string, modelIds: string[]) {

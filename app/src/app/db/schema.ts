@@ -206,6 +206,30 @@ export const calibrationLabels = sqliteTable("calibration_labels", {
   createdAt: text("created_at").notNull().default(nowIso),
 })
 
+export const judgeCache = sqliteTable(
+  "judge_cache",
+  {
+    id: text("id").primaryKey(),
+    cacheKey: text("cache_key").notNull().unique(),
+    judgeModelId: text("judge_model_id").notNull(),
+    modelId: text("model_id").notNull(),
+    taskStepId: text("task_step_id"),
+    responseId: text("response_id"),
+    promptHash: text("prompt_hash"),
+    responseHash: text("response_hash"),
+    score: integer("score").notNull(),
+    refusalClass: text("refusal_class").notNull(),
+    reasoning: text("reasoning").notNull(),
+    calibrationApplied: integer("calibration_applied", { mode: "boolean" }).notNull().default(false),
+    createdAt: text("created_at").notNull().default(nowIso),
+  },
+  (table) => ({
+    judgeModelIdx: index("judge_cache_judge_model_idx").on(table.judgeModelId),
+    modelIdx: index("judge_cache_model_idx").on(table.modelId),
+    taskStepIdx: index("judge_cache_task_step_idx").on(table.taskStepId),
+  }),
+)
+
 export const costEvents = sqliteTable(
   "cost_events",
   {
@@ -234,6 +258,7 @@ export const schema = {
   auditLogs,
   runCheckpoints,
   calibrationLabels,
+  judgeCache,
   costEvents,
 }
 
@@ -293,3 +318,5 @@ export type RunSummaryRow = typeof runSummaries.$inferSelect
 export type UpliftMetricRow = typeof upliftMetrics.$inferSelect
 export type AuditLogRow = typeof auditLogs.$inferSelect
 export type RunCheckpointRow = typeof runCheckpoints.$inferSelect
+export type CalibrationLabelRow = typeof calibrationLabels.$inferSelect
+export type JudgeCacheRow = typeof judgeCache.$inferSelect

@@ -41,8 +41,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         score: step.score?.bestScore ?? 0,
       })),
       bestScore: step.score?.bestScore ?? 0,
-          bestModelId: step.score?.bestModelId ?? null,
-          consistencyScore: step.score?.consistencyScore ?? 0,
+      bestModelId: step.score?.bestModelId ?? null,
+      consistencyScore: step.score?.consistencyScore ?? 0,
     })),
   }
 

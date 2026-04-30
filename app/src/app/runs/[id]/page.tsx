@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { SiteShell } from "@/app/components/site-shell"
 import { LiveRunFeed } from "@/app/components/live-run-feed"
-import { ResumeRunButton } from "@/app/components/resume-run-button"
+import { LiveStepLog } from "@/app/components/run/live-step-log"
+import { RunCheckpointBanner } from "@/app/components/run/run-checkpoint-banner"
+import { RunCostBadge } from "@/app/components/run/run-cost-badge"
 import { getRunDetail } from "@/app/db/store"
 import { formatCurrency, formatInteger, formatRelativeTime, formatTimestamp, titleCase } from "@/app/lib/format"
 
@@ -45,6 +47,29 @@ export default async function RunDetailPage({
 
   const checkpoints = run.checkpoints
   const summary = run.summary
+  const liveStepRows = run.steps.map((step) => {
+    const bestModelId = step.score?.bestModelId ?? null
+    const bestResponse = bestModelId ? step.modelResponses.find((response) => response.modelId === bestModelId) : null
+
+    return {
+      id: step.id,
+      taskId: step.taskId,
+      taskTitle: step.task.title,
+      stepIndex: step.stepIndex,
+      prompt: step.taskStep.prompt,
+      bestModelId,
+      bestScore: step.score?.bestScore ?? null,
+      refusalClass: bestResponse?.refusalClass ?? step.modelResponses[0]?.refusalClass ?? null,
+      consistencyScore: step.score?.consistencyScore ?? null,
+      modelResponses: step.modelResponses.map((response) => ({
+        modelId: response.modelId,
+        refusalClass: response.refusalClass,
+        content: response.content,
+        isSynthesized: response.isSynthesized,
+      })),
+      status: "complete" as const,
+    }
+  })
 
   return (
     <SiteShell
@@ -64,7 +89,6 @@ export default async function RunDetailPage({
               Results
             </Link>
           </Button>
-          {run.status === "FAILED" || run.status === "CANCELLED" ? <ResumeRunButton runId={run.id} /> : null}
         </>
       }
     >
@@ -105,7 +129,10 @@ export default async function RunDetailPage({
         <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
           <Card className="border-white/10 bg-white/5 shadow-[0_20px_80px_rgba(2,6,23,0.28)] backdrop-blur-xl">
             <CardHeader className="space-y-2">
-              <CardTitle className="text-white">Run details</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <CardTitle className="text-white">Run details</CardTitle>
+                <RunCostBadge estimatedCostUsd={summary?.estimatedCostUsd ?? null} />
+              </div>
               <CardDescription className="text-zinc-400">
                 Persistent metadata for the current orchestration session.
               </CardDescription>
@@ -135,57 +162,22 @@ export default async function RunDetailPage({
             </CardContent>
           </Card>
 
-          <LiveRunFeed
-            runId={run.id}
-            initialEvents={run.auditLogs.map((log) => ({
-              id: log.id,
-              type: log.type,
-              message: log.message,
-              metadata: log.metadata ? JSON.parse(log.metadata) : {},
-              createdAt: log.createdAt,
-            }))}
-          />
+          <div className="grid gap-6">
+            <RunCheckpointBanner checkpoint={checkpoints} runId={run.id} status={run.status} />
+            <LiveRunFeed
+              runId={run.id}
+              initialEvents={run.auditLogs.map((log) => ({
+                id: log.id,
+                type: log.type,
+                message: log.message,
+                metadata: log.metadata ? JSON.parse(log.metadata) : {},
+                createdAt: log.createdAt,
+              }))}
+            />
+          </div>
         </section>
 
-        <Card className="border-white/10 bg-white/5 shadow-[0_20px_80px_rgba(2,6,23,0.28)] backdrop-blur-xl">
-          <CardHeader className="space-y-2">
-            <CardTitle className="text-white">Task execution</CardTitle>
-            <CardDescription className="text-zinc-400">
-              Step-by-step completion data with the selected best response per step.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-3">
-            {run.steps.map((step) => (
-              <div key={step.id} className="rounded-xl border border-white/10 bg-black/20 p-4">
-                <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <div className="font-medium text-white">{step.task.title}</div>
-                    <div className="mt-1 text-sm text-zinc-400">{step.taskStep.prompt}</div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge variant="secondary" className="bg-white/10 text-zinc-100">
-                      Score {step.score?.bestScore ?? 0}
-                    </Badge>
-                    <Badge variant="outline" className="border-white/10 bg-white/5 text-zinc-200">
-                      {step.score?.bestModelId ?? "n/a"}
-                    </Badge>
-                  </div>
-                </div>
-                <div className="mt-3 grid gap-2 md:grid-cols-2">
-                  {step.modelResponses.map((response) => (
-                    <div key={response.id} className="rounded-lg border border-white/10 bg-white/5 p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs uppercase tracking-[0.2em] text-zinc-500">
-                        <span>{response.modelId}</span>
-                        <span>{response.refusalClass}</span>
-                      </div>
-                      <p className="mt-2 line-clamp-4 text-sm text-zinc-200">{response.content}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+        <LiveStepLog runId={run.id} initialSteps={liveStepRows} />
 
         {summary ? (
           <Card className="border-white/10 bg-white/5 shadow-[0_20px_80px_rgba(2,6,23,0.28)] backdrop-blur-xl">

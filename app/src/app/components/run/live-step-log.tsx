@@ -33,7 +33,6 @@ type LiveEvent = {
   type: string
   message: string
   createdAt: string
-  metadata?: Record<string, unknown> | null
 }
 
 function responseCountLabel(count: number) {
@@ -67,7 +66,19 @@ export function LiveStepLog({
     source.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data) as
-          | { type?: string; message?: string; createdAt?: string; metadata?: Record<string, unknown> }
+          | {
+              type?: string
+              message?: string
+              createdAt?: string
+              stepId?: string
+              taskId?: string
+              taskTitle?: string
+              stepIndex?: number
+              bestModelId?: string
+              bestScore?: number
+              refusalClass?: string
+              modelIds?: string[]
+            }
           | null
 
         if (!payload?.type || payload.type === "connected") return
@@ -77,21 +88,19 @@ export function LiveStepLog({
           type: payload.type,
           message: payload.message ?? payload.type,
           createdAt: payload.createdAt ?? new Date().toISOString(),
-          metadata: payload.metadata ?? null,
         }
 
         setEvents((current) => [...current.slice(-5), nextEvent])
 
         if (payload.type === "step_dispatched" || payload.type === "step_complete") {
-          const metadata = payload.metadata ?? {}
-          const stepId = String(metadata.stepId ?? "")
-          const taskTitle = String(metadata.taskTitle ?? stepId)
-          const taskId = String(metadata.taskId ?? stepId)
-          const stepIndex = Number(metadata.stepIndex ?? 0)
-          const bestModelId = metadata.bestModelId ? String(metadata.bestModelId) : null
-          const bestScore = typeof metadata.bestScore === "number" ? metadata.bestScore : null
-          const refusalClass = metadata.refusalClass ? String(metadata.refusalClass) : null
-          const modelIds = Array.isArray(metadata.modelIds) ? metadata.modelIds.map((modelId) => String(modelId)) : []
+          const stepId = String(payload.stepId ?? "")
+          const taskTitle = String(payload.taskTitle ?? stepId)
+          const taskId = String(payload.taskId ?? stepId)
+          const stepIndex = Number(payload.stepIndex ?? 0)
+          const bestModelId = payload.bestModelId ? String(payload.bestModelId) : null
+          const bestScore = typeof payload.bestScore === "number" ? payload.bestScore : null
+          const refusalClass = payload.refusalClass ? String(payload.refusalClass) : null
+          const modelIds = Array.isArray(payload.modelIds) ? payload.modelIds.map((modelId) => String(modelId)) : []
 
           setRows((current) =>
             upsertStep(current, {
@@ -99,7 +108,7 @@ export function LiveStepLog({
               taskId,
               taskTitle,
               stepIndex,
-              prompt: String(metadata.prompt ?? "Step in flight"),
+              prompt: "Step in flight",
               bestModelId,
               bestScore,
               refusalClass,

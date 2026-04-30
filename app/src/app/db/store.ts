@@ -709,3 +709,29 @@ export async function listUpliftMetricCandidates(category: string, modelIds: str
   if (modelIds.length === 0) return []
   return db.select().from(upliftMetrics).where(and(eq(upliftMetrics.category, category), inArray(upliftMetrics.modelId, modelIds))).orderBy(asc(upliftMetrics.refusalRate), desc(upliftMetrics.meanScore))
 }
+
+export async function replaceUpliftMetricsForRun(
+  runId: string,
+  rows: Array<{
+    id: string
+    runId: string
+    modelId: string
+    category: string
+    difficulty: number
+    refusalRate: number
+    meanScore: number
+    sampleCount: number
+  }>,
+) {
+  const db = getDb()
+  await db.delete(upliftMetrics).where(eq(upliftMetrics.runId, runId))
+
+  if (rows.length === 0) return
+
+  await db.insert(upliftMetrics).values(
+    rows.map((row) => ({
+      ...row,
+      createdAt: nowIso(),
+    })),
+  )
+}

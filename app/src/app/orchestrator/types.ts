@@ -6,7 +6,13 @@ export type RoutingStrategy =
   | "SOLO"
   | "RANDOM"
 
-export type ModelProvider = "openai" | "anthropic" | "google" | "mistral" | "mock"
+export type ModelProvider =
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "mistral"
+  | "lmstudio"
+  | "mock"
 
 export type RefusalClass =
   | "FULL_REFUSAL"
@@ -39,6 +45,8 @@ export interface ModelAdapter {
   id: string
   displayName: string
   provider: ModelProvider
+  available: boolean
+  setupHint?: string
   invoke(prompt: string, options?: InvokeOptions): Promise<ModelResponse>
 }
 

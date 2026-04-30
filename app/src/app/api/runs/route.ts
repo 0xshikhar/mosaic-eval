@@ -1,6 +1,7 @@
 import { z } from "zod"
 import { NextResponse } from "next/server"
 import { listRunRows, createRun } from "@/app/db/store"
+import { listAdapters } from "@/app/orchestrator/adapters"
 import { executeRun } from "@/app/orchestrator/runner"
 import { ensureSeedTasks } from "@/app/tasks/service"
 
@@ -47,6 +48,25 @@ export async function POST(request: Request) {
   try {
     await ensureSeedTasks()
     const body = RunCreateSchema.parse(await request.json())
+    const adapters = listAdapters()
+    const availableModelIds = new Set(adapters.filter((adapter) => adapter.available).map((adapter) => adapter.id))
+    const knownModelIds = new Set(adapters.map((adapter) => adapter.id))
+    const unavailableModelIds = body.modelIds.filter((modelId) => !availableModelIds.has(modelId))
+
+    if (unavailableModelIds.length > 0) {
+      return NextResponse.json(
+        {
+          error: "One or more selected model adapters are not configured.",
+          unavailableModelIds,
+          availableModelIds: [...availableModelIds],
+        },
+        { status: 400 },
+      )
+    }
+
+    const judgeModelId =
+      knownModelIds.has(body.judgeModelId) ? body.judgeModelId : adapters.find((adapter) => adapter.available)?.id ?? body.judgeModelId
+
     const runId = crypto.randomUUID()
 
     await createRun({
@@ -54,7 +74,7 @@ export async function POST(request: Request) {
       name: body.name,
       strategy: body.strategy,
       modelIds: body.modelIds,
-      judgeModelId: body.judgeModelId,
+      judgeModelId,
       includeBaseline: body.includeBaseline,
       status: "PENDING",
     })
@@ -65,7 +85,7 @@ export async function POST(request: Request) {
       modelIds: body.modelIds,
       strategy: body.strategy,
       includeBaselineRuns: body.includeBaseline,
-      judgeModelId: body.judgeModelId,
+      judgeModelId,
       maxStepsPerTask: body.maxStepsPerTask,
     }).catch((error) => {
       console.error("Run execution failed", error)

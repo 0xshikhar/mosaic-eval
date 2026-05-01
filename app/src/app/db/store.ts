@@ -128,6 +128,8 @@ export type RunView = {
   modelIds: string[]
   judgeModelId: string
   includeBaseline: boolean
+  costBudgetUsd: number | null
+  maxConcurrentRequests: number | null
   status: string
   errorMessage: string | null
   startedAt: string | null
@@ -406,6 +408,8 @@ export async function createRun(data: {
   modelIds: string[]
   judgeModelId: string
   includeBaseline: boolean
+  costBudgetUsd?: number | null
+  maxConcurrentRequests?: number | null
   status?: string
 }) {
   const db = getDb()
@@ -416,6 +420,8 @@ export async function createRun(data: {
     modelIds: stringifyJson(data.modelIds),
     judgeModelId: data.judgeModelId,
     includeBaseline: data.includeBaseline,
+    costBudgetUsd: data.costBudgetUsd ?? null,
+    maxConcurrentRequests: data.maxConcurrentRequests ?? null,
     status: data.status ?? "PENDING",
   })
 }

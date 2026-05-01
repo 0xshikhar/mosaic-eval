@@ -60,6 +60,8 @@ export function RunComposer({
   )
   const [includeBaseline, setIncludeBaseline] = useState(true)
   const [maxStepsPerTask, setMaxStepsPerTask] = useState("")
+  const [maxConcurrentRequests, setMaxConcurrentRequests] = useState("3")
+  const [costBudgetUsd, setCostBudgetUsd] = useState("")
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const selectedModelLabels = useMemo(
@@ -105,16 +107,18 @@ export function RunComposer({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          name,
-          taskIds: selectedTaskIds,
-          modelIds: selectedModelIds,
-          strategy,
-          includeBaseline,
-          judgeModelId,
-          maxStepsPerTask: maxStepsPerTask ? Number(maxStepsPerTask) : undefined,
-        }),
-      })
+          body: JSON.stringify({
+            name,
+            taskIds: selectedTaskIds,
+            modelIds: selectedModelIds,
+            strategy,
+            includeBaseline,
+            judgeModelId,
+            maxStepsPerTask: maxStepsPerTask ? Number(maxStepsPerTask) : undefined,
+            maxConcurrentRequests: maxConcurrentRequests ? Number(maxConcurrentRequests) : undefined,
+            costBudgetUsd: costBudgetUsd ? Number(costBudgetUsd) : undefined,
+          }),
+        })
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => null)) as { error?: string } | null
@@ -199,6 +203,32 @@ export function RunComposer({
                 placeholder="All"
                 value={maxStepsPerTask}
                 onChange={(event) => setMaxStepsPerTask(event.target.value)}
+                className="border-white/10 bg-black/20 text-white placeholder:text-zinc-500"
+              />
+            </div>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-zinc-200">Max concurrent requests</label>
+              <Input
+                type="number"
+                min={1}
+                placeholder="3"
+                value={maxConcurrentRequests}
+                onChange={(event) => setMaxConcurrentRequests(event.target.value)}
+                className="border-white/10 bg-black/20 text-white placeholder:text-zinc-500"
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium text-zinc-200">Cost budget USD</label>
+              <Input
+                type="number"
+                min={0}
+                step={0.01}
+                placeholder="No cap"
+                value={costBudgetUsd}
+                onChange={(event) => setCostBudgetUsd(event.target.value)}
                 className="border-white/10 bg-black/20 text-white placeholder:text-zinc-500"
               />
             </div>

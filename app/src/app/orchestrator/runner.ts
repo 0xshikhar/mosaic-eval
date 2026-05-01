@@ -13,12 +13,19 @@ import { analyzeConsistency } from "@/app/eval/consistency"
 import { detectRefusal } from "@/app/eval/refusal-detector"
 import { scoreResponse } from "@/app/eval/scorer"
 import { getAdapter } from "@/app/orchestrator/adapters"
+import { createDispatcher } from "@/app/orchestrator/dispatcher"
 import { clearRunStream, publishRunEvent } from "@/app/orchestrator/events"
 import { createStrategyPlanner } from "@/app/orchestrator/strategies"
 import type { RunConfig } from "@/app/orchestrator/types"
-import { createLimiter } from "@/app/safety/rate-limit"
 import { sanitizeImportedTaskPrompt } from "@/app/safety/sanitize-task"
 import { getTaskById } from "@/app/tasks/service"
+
+class BudgetExceededError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "BudgetExceededError"
+  }
+}
 
 async function persistRunEvent(runId: string, eventType: string, message: string, metadata: unknown) {
   await createAuditLog({
@@ -31,11 +38,20 @@ async function persistRunEvent(runId: string, eventType: string, message: string
 }
 
 export async function executeRun(runId: string, config: RunConfig) {
-  const limiter = createLimiter(config.maxConcurrentRequests ?? 3)
+  const dispatcher = createDispatcher(config.maxConcurrentRequests ?? 3)
   const planner = createStrategyPlanner({
     runId,
     modelIds: config.modelIds,
   })
+  let accumulatedCostUsd = 0
+
+  function ensureBudgetRemaining() {
+    if (typeof config.costBudgetUsd === "number" && accumulatedCostUsd >= config.costBudgetUsd) {
+      throw new BudgetExceededError(
+        `Run budget of $${config.costBudgetUsd.toFixed(2)} has been exhausted after $${accumulatedCostUsd.toFixed(2)} of estimated spend.`,
+      )
+    }
+  }
 
   try {
     const tasks = await Promise.all(config.taskIds.map((taskId) => getTaskById(taskId)))
@@ -79,6 +95,7 @@ export async function executeRun(runId: string, config: RunConfig) {
 
       for (const step of steps) {
         if (globalStepIndex >= 0 && globalStepIndex >= totalSteps - 1) break
+        ensureBudgetRemaining()
 
         const nextStepIndex = globalStepIndex + 1
         if (checkpoint?.checkpoints && config.resumeFromCheckpoint && nextStepIndex <= checkpoint.checkpoints.lastCompletedStepIndex) {
@@ -123,37 +140,32 @@ export async function executeRun(runId: string, config: RunConfig) {
         })
 
         const invokeAndScore = async (modelId: string) => {
-          await limiter.acquire()
-          try {
-            const adapter = getAdapter(modelId)
-            const response = await adapter.invoke(sanitizedPrompt, {
-              systemPrompt: step.rubric,
-              modelVersion: "mock-1",
-            })
+          const adapter = getAdapter(modelId)
+          const response = await dispatcher.invoke(adapter, sanitizedPrompt, {
+            systemPrompt: step.rubric,
+            modelVersion: "mock-1",
+          })
 
-              const refusalClass = detectRefusal(response.content)
-              const scored = await scoreResponse(
-                {
-                  id: step.id,
-                  taskId: task.id,
-                  prompt: sanitizedPrompt,
-                  rubric: step.rubric,
-                  expectedKeywords: step.expectedKeywords,
-                  calibrationTag: step.calibrationTag,
-                },
-                response,
-                refusalClass,
-              )
+          const refusalClass = detectRefusal(response.content)
+          const scored = await scoreResponse(
+            {
+              id: step.id,
+              taskId: task.id,
+              prompt: sanitizedPrompt,
+              rubric: step.rubric,
+              expectedKeywords: step.expectedKeywords,
+              calibrationTag: step.calibrationTag,
+            },
+            response,
+            refusalClass,
+          )
 
-            return {
-              response: {
-                ...response,
-                refusalClass,
-              },
-              scored,
-            }
-          } finally {
-            limiter.release()
+          return {
+            response: {
+              ...response,
+              refusalClass,
+            },
+            scored,
           }
         }
 
@@ -264,10 +276,16 @@ export async function executeRun(runId: string, config: RunConfig) {
           state: { taskId: task.id, stepId: step.id },
         })
 
+        accumulatedCostUsd += [...scoredResponses, ...baselineResponses.map((entry) => entry.response)].reduce(
+          (sum, entry) => sum + (entry.costUsd ?? 0),
+          0,
+        )
+
         await persistRunEvent(runId, "step_complete", `Step ${step.id} complete`, {
           stepId: step.id,
           bestModelId: scoredResponses[bestIndex].modelId,
           bestScore: stepScores[bestIndex],
+          estimatedCostUsd: accumulatedCostUsd,
         })
 
         publishRunEvent(runId, {
@@ -283,6 +301,7 @@ export async function executeRun(runId: string, config: RunConfig) {
         })
 
         globalStepIndex = nextStepIndex
+        ensureBudgetRemaining()
       }
 
       publishRunEvent(runId, {
@@ -326,8 +345,8 @@ export async function executeRun(runId: string, config: RunConfig) {
     return { success: true, uplift }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown run failure"
-
-    await updateRun(runId, { status: "FAILED", errorMessage: message, completedAt: new Date().toISOString() })
+    const status = error instanceof BudgetExceededError ? "CANCELLED" : "FAILED"
+    await updateRun(runId, { status, errorMessage: message, completedAt: new Date().toISOString() })
 
     publishRunEvent(runId, {
       type: "run_error",

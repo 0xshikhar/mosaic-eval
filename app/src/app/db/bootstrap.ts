@@ -1,5 +1,12 @@
 import type { DatabaseSync } from "node:sqlite"
 
+function ensureColumn(db: DatabaseSync, tableName: string, columnName: string, columnSql: string) {
+  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name?: string }>
+  if (columns.some((column) => column.name === columnName)) return
+
+  db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${columnSql}`)
+}
+
 export function ensureSchema(db: DatabaseSync) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS eval_tasks (
@@ -37,6 +44,8 @@ export function ensureSchema(db: DatabaseSync) {
       model_ids TEXT NOT NULL,
       judge_model_id TEXT NOT NULL,
       include_baseline INTEGER NOT NULL DEFAULT 1,
+      cost_budget_usd REAL,
+      max_concurrent_requests INTEGER,
       status TEXT NOT NULL DEFAULT 'PENDING',
       error_message TEXT,
       started_at TEXT,
@@ -186,4 +195,9 @@ export function ensureSchema(db: DatabaseSync) {
 
     CREATE INDEX IF NOT EXISTS cost_events_run_idx ON cost_events(run_id);
   `)
+
+  // Preserve older local databases by adding any columns that were introduced
+  // after the initial table was created.
+  ensureColumn(db, "eval_runs", "cost_budget_usd", "REAL")
+  ensureColumn(db, "eval_runs", "max_concurrent_requests", "INTEGER")
 }

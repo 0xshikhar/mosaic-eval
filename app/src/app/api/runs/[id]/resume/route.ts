@@ -21,6 +21,8 @@ export async function POST(_: Request, { params }: { params: Promise<{ id: strin
     strategy: run.strategy as never,
     includeBaselineRuns: run.includeBaseline,
     judgeModelId: run.judgeModelId,
+    costBudgetUsd: run.costBudgetUsd ?? undefined,
+    maxConcurrentRequests: run.maxConcurrentRequests ?? undefined,
     resumeFromCheckpoint: true,
   }).catch((error) => {
     console.error("Resume failed", error)

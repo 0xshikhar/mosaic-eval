@@ -22,6 +22,8 @@ const RunCreateSchema = z.object({
   includeBaseline: z.boolean().optional().default(true),
   judgeModelId: z.string().optional().default("mock-judge"),
   maxStepsPerTask: z.number().int().positive().optional(),
+  maxConcurrentRequests: z.number().int().positive().optional(),
+  costBudgetUsd: z.number().positive().optional(),
 })
 
 export async function GET() {
@@ -76,6 +78,8 @@ export async function POST(request: Request) {
       modelIds: body.modelIds,
       judgeModelId,
       includeBaseline: body.includeBaseline,
+      costBudgetUsd: body.costBudgetUsd ?? null,
+      maxConcurrentRequests: body.maxConcurrentRequests ?? null,
       status: "PENDING",
     })
 
@@ -87,6 +91,8 @@ export async function POST(request: Request) {
       includeBaselineRuns: body.includeBaseline,
       judgeModelId,
       maxStepsPerTask: body.maxStepsPerTask,
+      maxConcurrentRequests: body.maxConcurrentRequests,
+      costBudgetUsd: body.costBudgetUsd,
     }).catch((error) => {
       console.error("Run execution failed", error)
     })

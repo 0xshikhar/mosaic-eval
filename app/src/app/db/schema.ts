@@ -52,6 +52,8 @@ export const evalRuns = sqliteTable(
     modelIds: text("model_ids").notNull(),
     judgeModelId: text("judge_model_id").notNull(),
     includeBaseline: integer("include_baseline", { mode: "boolean" }).notNull().default(true),
+    costBudgetUsd: real("cost_budget_usd"),
+    maxConcurrentRequests: integer("max_concurrent_requests"),
     status: text("status").notNull().default("PENDING"),
     errorMessage: text("error_message"),
     startedAt: text("started_at"),

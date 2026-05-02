@@ -25,7 +25,7 @@ type StepRow = {
   refusalClass: string | null
   consistencyScore: number | null
   modelResponses: StepResponse[]
-  status: "complete" | "running"
+  status: "complete" | "running" | "failed"
 }
 
 type LiveEvent = {
@@ -48,6 +48,10 @@ function upsertStep(rows: StepRow[], patch: Partial<StepRow> & { id: string }) {
   const next = [...rows]
   next[index] = { ...next[index], ...patch }
   return next
+}
+
+function markRunningRows(rows: StepRow[], status: "complete" | "failed") {
+  return rows.map((row) => (row.status === "running" ? { ...row, status } : row))
 }
 
 export function LiveStepLog({
@@ -121,6 +125,10 @@ export function LiveStepLog({
               status: payload.type === "step_complete" ? "complete" : "running",
             }),
           )
+        } else if (payload.type === "run_complete") {
+          setRows((current) => markRunningRows(current, "complete"))
+        } else if (payload.type === "run_error") {
+          setRows((current) => markRunningRows(current, "failed"))
         }
       } catch {
         // Ignore malformed SSE payloads.
@@ -196,7 +204,11 @@ export function LiveStepLog({
                     <tr
                       key={row.id}
                       className={`border-t border-white/10 ${
-                        row.status === "running" ? "bg-cyan-400/5" : "bg-transparent"
+                        row.status === "running"
+                          ? "bg-cyan-400/5"
+                          : row.status === "failed"
+                            ? "bg-red-400/5"
+                            : "bg-transparent"
                       }`}
                     >
                       <td className="px-4 py-4 align-top text-zinc-300">

@@ -83,11 +83,11 @@ export function StepDiffViewer({ steps }: { steps: StepSummary[] }) {
                 </div>
 
                 <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
-                  {step.responses.map((response) => {
+                  {step.responses.map((response, index) => {
                     const isBest = response.modelId === step.bestModelId
                     return (
                       <div
-                        key={`${step.id}-${response.modelId}`}
+                        key={`${step.id}-${response.modelId}-${index}`}
                         className={`rounded-xl border p-4 ${
                           isBest ? "border-emerald-400/40 bg-emerald-400/10" : "border-white/10 bg-black/20"
                         }`}

@@ -70,8 +70,12 @@ export function RunResultsTable({
                   <TableCell className="text-zinc-300">{step.consistencyScore.toFixed(2)}</TableCell>
                   <TableCell className="min-w-80 whitespace-normal">
                     <div className="flex flex-wrap gap-2">
-                      {step.responses.map((response) => (
-                        <Badge key={`${step.id}-${response.modelId}`} variant="outline" className="border-white/10 bg-white/5 text-zinc-200">
+                      {step.responses.map((response, index) => (
+                        <Badge
+                          key={`${step.id}-${response.modelId}-${index}`}
+                          variant="outline"
+                          className="border-white/10 bg-white/5 text-zinc-200"
+                        >
                           {response.modelId}: {response.refusalClass}
                         </Badge>
                       ))}

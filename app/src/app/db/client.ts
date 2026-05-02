@@ -2,17 +2,12 @@ import { drizzle } from "drizzle-orm/sqlite-proxy"
 import { DatabaseSync } from "node:sqlite"
 
 import { ensureSchema } from "@/app/db/bootstrap"
+import { getDatabasePath } from "@/app/db/path"
 import { schema } from "@/app/db/schema"
 
 declare global {
   var __mosaicSQLite: DatabaseSync | undefined
   var __mosaicDb: ReturnType<typeof drizzle> | undefined
-}
-
-import { join } from "node:path"
-
-function getDatabasePath() {
-  return join(process.cwd(), "..", "data", "mosaic.db")
 }
 
 function toValueRows(rows: Array<Record<string, unknown>>) {

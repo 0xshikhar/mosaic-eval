@@ -44,6 +44,7 @@ interface ProviderGate {
 }
 
 const DEFAULT_TIMEOUT_MS = 30_000
+const DEFAULT_LM_STUDIO_TIMEOUT_MS = 300_000
 const DEFAULT_MAX_CONCURRENT = 2
 const DEFAULT_FAILURE_THRESHOLD = 3
 const DEFAULT_COOLDOWN_MS = 30_000
@@ -67,7 +68,7 @@ function normalizeBaseUrl(value: string) {
 
 function clampTimeout(value: number | undefined, fallback: number) {
   if (!Number.isFinite(value ?? Number.NaN)) return fallback
-  return Math.max(1_000, Math.min(120_000, Number(value)))
+  return Math.max(1_000, Math.min(600_000, Number(value)))
 }
 
 function parsePositiveInt(value: string | undefined, fallback: number) {
@@ -671,12 +672,12 @@ function createModelCatalog(context: RegistryContext) {
       endpoint: context.env.LM_STUDIO_BASE_URL?.trim() || "http://127.0.0.1:1234/v1",
       configured: lmStudioConfigured,
       setupHint:
-        "Set LM_STUDIO_BASE_URL to your local OpenAI-compatible server and LM_STUDIO_MODEL_ID to the loaded model name.",
+        "Set LM_STUDIO_BASE_URL to your local OpenAI-compatible server and LM_STUDIO_MODEL_ID to the loaded model name. You can also raise LM_STUDIO_TIMEOUT_MS for slower local generations.",
       available: lmStudioConfigured,
       maxConcurrent: parsePositiveInt(context.env.LM_STUDIO_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT),
       timeoutMs: clampTimeout(
-        parseNumber(context.env.LM_STUDIO_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
-        DEFAULT_TIMEOUT_MS,
+        parseNumber(context.env.LM_STUDIO_TIMEOUT_MS, DEFAULT_LM_STUDIO_TIMEOUT_MS),
+        DEFAULT_LM_STUDIO_TIMEOUT_MS,
       ),
     },
   }
@@ -808,7 +809,7 @@ export function getModelCatalog() {
 }
 
 export function createTestRegistry(overrides: {
-  env?: NodeJS.ProcessEnv
+  env?: Record<string, string | undefined>
   fetchImpl?: FetchLike
   now?: () => number
 }) {

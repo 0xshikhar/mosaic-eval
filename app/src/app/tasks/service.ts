@@ -1,8 +1,8 @@
-import { countTasks, deleteTask, getTaskRowById, listTaskRows, upsertTask } from "@/app/db/store"
+import { deleteTask, getTaskRowById, listTaskRows, upsertTask } from "@/app/db/store"
 import { EvalTaskSchema, type EvalTaskInput } from "@/app/tasks/schema"
 import { seedTasks } from "@/app/tasks/seed"
 
-function taskToView(task: EvalTaskInput) {
+export function taskInputToView(task: EvalTaskInput) {
   return {
     id: task.id,
     title: task.title,
@@ -26,12 +26,9 @@ function taskToView(task: EvalTaskInput) {
 }
 
 export async function ensureSeedTasks() {
-  const total = await countTasks()
-  if (total > 0) return
-
   for (const rawTask of seedTasks) {
     const task = EvalTaskSchema.parse(rawTask)
-    await upsertTask(taskToView(task))
+    await upsertTask(taskInputToView(task))
   }
 }
 
@@ -69,7 +66,7 @@ export async function importTasksFromJsonl(jsonl: string, overwrite = false) {
         await deleteTask(parsed.id)
       }
 
-      await upsertTask(taskToView(parsed))
+      await upsertTask(taskInputToView(parsed))
       imported += 1
     } catch (error) {
       errors.push({

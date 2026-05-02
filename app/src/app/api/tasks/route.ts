@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
-import { ensureSeedTasks, listTasks } from "@/app/tasks/service"
+import { EvalTaskSchema } from "@/app/tasks/schema"
+import { ensureSeedTasks, listTasks, taskInputToView } from "@/app/tasks/service"
+import { upsertTask } from "@/app/db/store"
 
 export const runtime = "nodejs"
 
@@ -28,4 +30,22 @@ export async function GET(request: Request) {
     })),
     total: filtered.length,
   })
+}
+
+export async function POST(request: Request) {
+  try {
+    const body = EvalTaskSchema.parse(await request.json())
+    await upsertTask(taskInputToView(body))
+    return NextResponse.json({
+      success: true,
+      taskId: body.id,
+    })
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: error instanceof Error ? error.message : "Failed to save task",
+      },
+      { status: 400 },
+    )
+  }
 }

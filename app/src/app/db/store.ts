@@ -260,20 +260,50 @@ export async function upsertTask(task: TaskView) {
     },
   })
 
-  await db.delete(evalTaskSteps).where(eq(evalTaskSteps.taskId, task.id))
   if (task.steps.length > 0) {
-    await db.insert(evalTaskSteps).values(
-      task.steps.map((step) => ({
-        id: step.id,
-        taskId: task.id,
-        stepIndex: step.stepIndex,
-        prompt: step.prompt,
-        rubric: step.rubric,
-        expectedKeywords: stringifyJson(step.expectedKeywords),
-        isBiosecuritySensitive: step.isBiosecuritySensitive,
-        calibrationTag: step.calibrationTag,
-      })),
-    )
+    const existingSteps = await db.select({ id: evalTaskSteps.id }).from(evalTaskSteps).where(eq(evalTaskSteps.taskId, task.id))
+    const currentStepIds = new Set(task.steps.map((step) => step.id))
+    const staleStepIds = existingSteps.map((step) => step.id).filter((stepId) => !currentStepIds.has(stepId))
+
+    if (staleStepIds.length > 0) {
+      const referencedSteps = await db
+        .select({ id: runSteps.taskStepId })
+        .from(runSteps)
+        .where(inArray(runSteps.taskStepId, staleStepIds))
+      const referencedStepIds = new Set(referencedSteps.map((row) => row.id))
+      const deletableStepIds = staleStepIds.filter((stepId) => !referencedStepIds.has(stepId))
+
+      if (deletableStepIds.length > 0) {
+        await db.delete(evalTaskSteps).where(inArray(evalTaskSteps.id, deletableStepIds))
+      }
+    }
+
+    for (const step of task.steps) {
+      await db
+        .insert(evalTaskSteps)
+        .values({
+          id: step.id,
+          taskId: task.id,
+          stepIndex: step.stepIndex,
+          prompt: step.prompt,
+          rubric: step.rubric,
+          expectedKeywords: stringifyJson(step.expectedKeywords),
+          isBiosecuritySensitive: step.isBiosecuritySensitive,
+          calibrationTag: step.calibrationTag,
+        })
+        .onConflictDoUpdate({
+          target: evalTaskSteps.id,
+          set: {
+            taskId: task.id,
+            stepIndex: step.stepIndex,
+            prompt: step.prompt,
+            rubric: step.rubric,
+            expectedKeywords: stringifyJson(step.expectedKeywords),
+            isBiosecuritySensitive: step.isBiosecuritySensitive,
+            calibrationTag: step.calibrationTag,
+          },
+        })
+    }
   }
 }
 

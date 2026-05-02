@@ -1,7 +1,6 @@
 import Link from "next/link"
 import { ArrowLeft, Download } from "lucide-react"
 
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { SiteShell } from "@/app/components/site-shell"
@@ -9,16 +8,9 @@ import { LiveRunFeed } from "@/app/components/live-run-feed"
 import { LiveStepLog } from "@/app/components/run/live-step-log"
 import { RunCheckpointBanner } from "@/app/components/run/run-checkpoint-banner"
 import { RunCostBadge } from "@/app/components/run/run-cost-badge"
+import { RunStatusCard } from "@/app/components/run/run-status-card"
 import { getRunDetail } from "@/app/db/store"
 import { formatCurrency, formatInteger, formatRelativeTime, formatTimestamp, titleCase } from "@/app/lib/format"
-
-function statusTone(status: string) {
-  if (status === "COMPLETE") return "bg-emerald-400/15 text-emerald-200"
-  if (status === "RUNNING") return "bg-cyan-400/15 text-cyan-200"
-  if (status === "FAILED") return "bg-red-400/15 text-red-200"
-  if (status === "CANCELLED") return "bg-amber-400/15 text-amber-200"
-  return "bg-white/10 text-zinc-200"
-}
 
 export default async function RunDetailPage({
   params,
@@ -94,16 +86,13 @@ export default async function RunDetailPage({
     >
       <div className="grid gap-6">
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Card className="border-white/10 bg-white/5 backdrop-blur-xl">
-            <CardHeader>
-              <CardDescription className="text-zinc-400">Status</CardDescription>
-              <CardTitle className="text-white">
-                <Badge variant="outline" className={statusTone(run.status)}>
-                  {run.status}
-                </Badge>
-              </CardTitle>
-            </CardHeader>
-          </Card>
+          <RunStatusCard
+            runId={run.id}
+            initialStatus={run.status as "PENDING" | "RUNNING" | "COMPLETE" | "FAILED" | "CANCELLED"}
+            initialErrorMessage={run.errorMessage}
+            initialCompletedAt={run.completedAt}
+            createdAt={run.createdAt}
+          />
           <Card className="border-white/10 bg-white/5 backdrop-blur-xl">
             <CardHeader>
               <CardDescription className="text-zinc-400">Mosaic score</CardDescription>

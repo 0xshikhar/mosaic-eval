@@ -168,4 +168,14 @@ describe("model adapters", () => {
     expect(calls[0]?.init?.headers).not.toHaveProperty("authorization")
     expect(response.content).toBe("hello from lm studio")
   })
+
+  test("lm studio defaults to a longer timeout than the cloud adapters", () => {
+    const registry = createTestRegistry({
+      env: baseEnv,
+      fetchImpl: async () => jsonResponse({}),
+      now: () => 1000,
+    })
+
+    expect(registry.getCatalog().lmstudio.timeoutMs).toBe(300_000)
+  })
 })

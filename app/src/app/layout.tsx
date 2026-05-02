@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Mosaic Eval Harness",
   description:
-    "Local-first multi-model biosecurity evaluation harness for proxy-task research.",
+    "Local-first multi-model biosecurity evaluation harness for curated research-task studies.",
 };
 
 export default function RootLayout({

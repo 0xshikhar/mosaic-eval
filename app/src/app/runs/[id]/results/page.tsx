@@ -110,7 +110,7 @@ export default async function RunResultsPage({
           />
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-2">
+        <section className="grid min-w-0 gap-6 xl:grid-cols-2">
           <UpliftBarChart data={modelScoreData} mosaicScore={run.summary?.mosaicScore ?? 0} />
           <UpliftCurve data={upliftCurveData} />
         </section>

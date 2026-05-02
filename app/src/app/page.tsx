@@ -27,7 +27,7 @@ export default async function Home() {
   return (
     <SiteShell
       title="Research dashboard"
-      description="A local-first evaluation harness for proxy-task runs, checkpointed execution, and analysis snapshots."
+      description="A local-first evaluation harness for curated task runs, checkpointed execution, and analysis snapshots."
       actions={
         <>
           <Button asChild className="bg-white text-slate-950 hover:bg-white/90">
@@ -50,7 +50,7 @@ export default async function Home() {
           <MetricCard
             label="Task fixtures"
             value={formatInteger(snapshot.metrics.totalTasks)}
-            note="Seeded proxy tasks available for launch."
+            note="Seeded research fixtures available for launch."
           />
           <MetricCard
             label="Recent runs"

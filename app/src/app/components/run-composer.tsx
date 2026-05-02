@@ -139,7 +139,7 @@ export function RunComposer({
         <CardHeader className="space-y-2">
           <CardTitle className="text-white">Compose a run</CardTitle>
           <CardDescription className="text-zinc-400">
-            Select proxy tasks, pick the routing strategy, and launch the run into the background.
+            Select curated tasks, pick the routing strategy, and launch the run into the background.
           </CardDescription>
         </CardHeader>
         <CardContent className="grid gap-6">
@@ -390,7 +390,7 @@ export function RunComposer({
             </Button>
             <p className="flex items-start gap-2 text-sm text-zinc-300">
               <ShieldAlert className="mt-0.5 size-4 shrink-0 text-amber-300" />
-              This MVP uses proxy tasks only. Keep the public corpus aligned with the research scope.
+              Keep the public corpus aligned with the research scope and curated fixture policy.
             </p>
             <div className="grid gap-2 text-sm text-zinc-400">
               <div>

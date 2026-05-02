@@ -32,7 +32,7 @@ export function ModelTester({ models }: { models: ModelAdapterSummary[] }) {
   const availableModels = useMemo(() => models.filter((model) => model.available), [models])
   const [modelId, setModelId] = useState(availableModels[0]?.id ?? models[0]?.id ?? "")
   const [prompt, setPrompt] = useState(
-    "Explain, in a single safe paragraph, how a researcher could evaluate an LLM on a biology proxy task.",
+    "Explain, in a single safe paragraph, how a researcher could evaluate an LLM on a curated biology task set.",
   )
   const [systemPrompt, setSystemPrompt] = useState("You are a careful research assistant. Keep the answer high level.")
   const [maxTokens, setMaxTokens] = useState("256")

@@ -23,7 +23,7 @@ export default async function NewRunPage() {
   return (
     <SiteShell
       title="New run"
-      description="Configure a comparison session using the seeded proxy tasks and available model adapters."
+      description="Configure a comparison session using the seeded research fixtures and available model adapters."
       actions={
         <Button asChild variant="outline" className="border-white/15 bg-white/5 text-white hover:bg-white/10">
           <Link href="/runs">

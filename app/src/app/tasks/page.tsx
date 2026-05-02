@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { SiteShell } from "@/app/components/site-shell"
+import { TaskBuilderForm } from "@/app/components/task-builder-form"
 import { TaskImportForm } from "@/app/components/task-import-form"
 import { formatInteger, titleCase } from "@/app/lib/format"
 import { listTasks } from "@/app/tasks/service"
@@ -16,7 +17,7 @@ export default async function TasksPage() {
   return (
     <SiteShell
       title="Tasks"
-      description="Proxy tasks, calibration fixtures, and imported datasets live here."
+      description="Curated research fixtures, calibration sets, and imported datasets live here."
       actions={
         <Button asChild className="bg-white text-slate-950 hover:bg-white/90">
           <Link href="/runs/new">
@@ -79,6 +80,8 @@ export default async function TasksPage() {
         </Card>
 
         <div className="grid gap-6 self-start">
+          <TaskBuilderForm />
+
           <TaskImportForm />
 
           <Card className="border-white/10 bg-gradient-to-br from-emerald-400/10 via-cyan-400/10 to-transparent shadow-[0_20px_80px_rgba(2,6,23,0.28)] backdrop-blur-xl">
@@ -88,7 +91,7 @@ export default async function TasksPage() {
                 Import guidance
               </CardTitle>
               <CardDescription className="text-zinc-300">
-                JSONL tasks should stay aligned with the proxy-task scope and safety policy.
+                JSONL tasks should stay aligned with the curated research scope and safety policy.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-zinc-300">

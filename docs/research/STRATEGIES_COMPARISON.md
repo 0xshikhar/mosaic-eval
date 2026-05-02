@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-The Mosaic Eval Harness implements six routing strategies that control how tasks are distributed across multiple LLMs. Each strategy represents a different hypothesis about how multi-model orchestration should work.
+The Mosaic Eval implements six routing strategies that control how tasks are distributed across multiple LLMs. Each strategy represents a different hypothesis about how multi-model orchestration should work.
 
 **Key Insight:** No single strategy is optimal for all scenarios. Strategy selection should be based on task characteristics, cost constraints, and risk tolerance.
 
@@ -213,7 +213,7 @@ Cost = N_steps × (sum(Cost(models)) + Cost(synthesizer))
 - Uplift increases with model diversity (different providers > same provider)
 - Synthesis penalty: ~5-10% quality loss vs. oracle selection
 - Optimal model count: 3-5 (returns diminish beyond)
-- Critical: Synthesizer must be strong (Claude 3.5 Sonnet or GPT-4o)
+- Critical: Synthesizer must be a strong configured frontier model or a high-quality local model
 
 ---
 

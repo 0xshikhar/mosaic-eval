@@ -1,4 +1,4 @@
-# Research Methodology — Mosaic Eval Harness
+# Research Methodology — Mosaic Eval
 
 ## 1. Research Questions
 
@@ -107,13 +107,13 @@ Biosecurity research operates under significant constraints:
 
 #### LLM Judge Selection
 
-**Primary Judge:** Claude 3.5 Sonnet (Anthropic)
+**Primary Judge:** Heuristic judge (`JUDGE_MODEL=heuristic-judge`) with optional provider-backed judge override
 
 **Rationale:**
-- Strong instruction following
-- Available via API with consistent versioning
-- Prior research shows high correlation with human judgments on technical tasks
-- Cost-effective relative to GPT-4 for high-volume evaluation
+- Fast, deterministic baseline scoring in the current codebase
+- Optional provider-backed judge can be swapped in later by env config
+- Human calibration can be layered onto the heuristic score
+- Cost-effective for local/demo runs
 
 **Judge Prompt Structure:**
 ```
@@ -241,7 +241,7 @@ similarity(A, B) = dot_product(embedding_A, embedding_embedding_B)
 | Temperature | Fixed at 0.2 for all models (deterministic, reproducible) |
 | Max Tokens | Fixed per task category based on expected response length |
 | Prompt Format | Standardized template with system prompt |
-| Judge Model | Fixed (Claude 3.5 Sonnet) across all evaluations |
+| Judge Model | Fixed per run via env/config; default is heuristic-judge in this build |
 | Random Seed | Fixed for reproducible task ordering |
 
 ### Independent Variables
@@ -388,14 +388,14 @@ To replicate a published result:
 When citing this methodology in academic publications:
 
 ```
-We evaluate model performance using the Mosaic Eval Harness methodology 
+We evaluate model performance using the Mosaic Eval methodology
 [Author et al., Year], which employs LLM-as-judge scoring with human-calibrated 
 rubrics, refusal classification via two-stage detection, and mosaic uplift 
 calculation comparing multi-model orchestration against individual model 
 baselines. Tasks are proxy biosecurity questions across five categories 
 (pathogen acquisition, synthesis evasion, protocol retrieval, protein 
 engineering, general biology) with difficulty ratings 1-5. Quality scores 
-range 0-100 from Claude 3.5 Sonnet evaluation against detailed rubrics. 
+range 0-100 from the configured judge or heuristic score against detailed rubrics.
 Uplift is calculated as the delta between mosaic strategy scores and the 
 best individual model score.
 ```

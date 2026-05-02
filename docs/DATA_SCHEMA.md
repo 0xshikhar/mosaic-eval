@@ -1,4 +1,4 @@
-# Data Schema — Mosaic Eval Harness
+# Data Schema — Mosaic Eval
 
 **Version:** 1.0  
 **Last Updated:** 2024  

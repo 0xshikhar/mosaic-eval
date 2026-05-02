@@ -1,4 +1,4 @@
-# Architecture — Mosaic Eval Harness
+# Architecture — Mosaic Eval
 
 **Version:** 1.0  
 **Last Updated:** 2024
@@ -7,7 +7,7 @@
 
 ## 1. System Overview
 
-The Mosaic Eval Harness is a research platform for evaluating LLM orchestration strategies on biosecurity-relevant proxy tasks. It combines a Next.js web interface with a sophisticated evaluation engine that can route tasks across multiple model providers, score responses, and compute "mosaic uplift" metrics.
+The Mosaic Eval is a research platform for evaluating LLM orchestration strategies on biosecurity-relevant proxy tasks. It combines a Next.js web interface with a sophisticated evaluation engine that can route tasks across multiple model providers, score responses, and compute "mosaic uplift" metrics.
 
 ### Architecture Principles
 
@@ -105,8 +105,8 @@ The Mosaic Eval Harness is a research platform for evaluating LLM orchestration 
 │  │   │   OpenAI   │  │  Anthropic │  │   Google   │  │   Bedrock  │       │  │
 │  │   │   Adapter  │  │   Adapter  │  │   Adapter  │  │   Adapter  │       │  │
 │  │   │            │  │            │  │            │  │            │       │  │
-│  │   │  • GPT-4o  │  │  • Claude  │  │  • Gemini  │  │  • Kimi    │       │  │
-│  │   │  • GPT-oss │  │  • Haiku   │  │            │  │  • MiniMax │       │  │
+│  │   │ gpt-oss-120b│  │ Sonnet 4.6 │  │  Gemini 2.5│  │  Kimi K2.5 │       │  │
+│  │   │ GPT-4o fbk  │  │ (Bedrock)  │  │   Pro      │  │ MiniMax M2.5│      │  │
 │  │   └─────┬──────┘  └─────┬──────┘  └─────┬──────┘  └─────┬──────┘       │  │
 │  │         └───────────────┴───────────────┴───────────────┘               │  │
 │  │                           │                                           │  │

@@ -1,4 +1,4 @@
-# Troubleshooting Guide — Mosaic Eval Harness
+# Troubleshooting Guide — Mosaic Eval
 
 ## 1. Quick Diagnostics
 
@@ -22,7 +22,7 @@ Expected response:
 ```bash
 curl -X POST http://localhost:3000/api/models/test \
   -H "Content-Type: application/json" \
-  -d '{"modelId": "openai"}'
+  -d '{"modelId": "openai.gpt-oss-120b"}'
 ```
 
 ---
@@ -180,8 +180,8 @@ echo $OPENAI_API_KEY
 **Reference refusal rates:**
 | Model | pathogen_acquisition | synthesis_evasion |
 |-------|----------------------|-------------------|
-| Claude | 48% | 55% |
-| GPT-4o | 32% | 35% |
+| Claude Sonnet 4.6 | 48% | 55% |
+| gpt-oss-120b | 32% | 35% |
 | Gemini | 25% | 30% |
 
 ---
@@ -225,7 +225,7 @@ ps aux | grep node
 **Solution:** Check model ID format:
 ```bash
 # Correct
-OPENAI_MODEL_ID=openai.gpt-oss-120b-1:0
+OPENAI_MODEL_ID=openai.gpt-oss-120b
 
 # Incorrect
 OPENAI_MODEL_ID=gpt-oss-120b
@@ -244,7 +244,7 @@ OPENAI_MODEL_ID=gpt-oss-120b
 **Solution:** 
 - Reduce `ANTHROPIC_MAX_CONCURRENT` to 1
 - Upgrade Anthropic API tier
-- Use Anthropic only for judge/scorer, not runner
+- Use Anthropic only for judge/scorer if your Bedrock quota is small
 
 **Issue:** Very slow responses (>10s)
 
@@ -255,6 +255,8 @@ OPENAI_MODEL_ID=gpt-oss-120b
 ANTHROPIC_TIMEOUT_MS=180000  # 3 minutes
 JUDGE_MAX_TOKENS=512  # Reduce output length
 ```
+
+**Bedrock Claude note:** If you use `ANTHROPIC_BASE_URL=https://bedrock-runtime.us-east-1.amazonaws.com`, the app normalizes the model to `us.anthropic.claude-sonnet-4-6` before calling Bedrock Runtime.
 
 ---
 
@@ -295,6 +297,7 @@ BEDROCK_REGION=us-east-1  # Most models available here
 ```
 
 3. Ensure model is enabled in Bedrock console.
+3. Ensure the model is enabled for your Bedrock account and region.
 
 ---
 
@@ -445,7 +448,7 @@ while read line; do echo "$line" | jq .; done < tasks.jsonl
    - Solution: Reduce max tokens, use faster models
 
 2. **Judge scoring:** If judge is slow
-   - Solution: Use GPT-4o instead of Claude for judge
+   - Solution: Use the heuristic judge cache or a faster configured judge model
 
 3. **Database writes:** If checkpoints slow
    - Solution: Increase checkpoint interval
@@ -472,7 +475,7 @@ while read line; do echo "$line" | jq .; done < tasks.jsonl
 # Use Gemini (cheaper) as primary
 MODELS=gemini,mistral
 STRATEGY=ROUND_ROBIN
-JUDGE_MODEL_ID=gemini  # Use same model for judge
+JUDGE_MODEL=heuristic-judge  # Default heuristic judge label; override if you configure a provider-backed judge
 DEFAULT_COST_BUDGET_USD=20
 ```
 

@@ -1,8 +1,8 @@
-# Configuration Guide — Mosaic Eval Harness
+# Configuration Guide — Mosaic Eval
 
 ## 1. Overview
 
-This document details all configuration options for the Mosaic Eval Harness, including environment variables, model settings, and system parameters.
+This document details all configuration options for the Mosaic Eval, including environment variables, model settings, and system parameters.
 
 ---
 
@@ -12,11 +12,12 @@ This document details all configuration options for the Mosaic Eval Harness, inc
 
 | Variable | Provider | Required | Description |
 |----------|----------|----------|-------------|
-| `OPENAI_API_KEY` | OpenAI | Conditional | For GPT-4o, GPT-oss access |
-| `ANTHROPIC_API_KEY` | Anthropic | Conditional | For Claude access |
+| `OPENAI_API_KEY` | OpenAI | Conditional | For direct OpenAI fallback |
+| `ANTHROPIC_API_KEY` | Anthropic | Conditional | For direct Anthropic fallback |
 | `GOOGLE_API_KEY` | Google | Conditional | For Gemini access |
 | `MISTRAL_API_KEY` | Mistral | Conditional | For Mistral Large access |
-| `BEDROCK_API_KEY` | AWS | Conditional | For Bedrock-hosted models |
+| `BEDROCK_API_KEY` | AWS | Conditional | Shared Bedrock key for OpenAI-compatible, Claude, Moonshot, and MiniMax |
+| `AWS_BEARER_TOKEN_BEDROCK` | AWS | Conditional | Alternative Bedrock bearer token env var |
 
 **Note:** At least one provider key is required. The harness can run with a single model.
 
@@ -24,9 +25,8 @@ This document details all configuration options for the Mosaic Eval Harness, inc
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `BEDROCK_API_KEY` | For Bedrock | - | AWS access key |
+| `BEDROCK_API_KEY` | For Bedrock | - | Shared Bedrock bearer token / API key |
 | `BEDROCK_REGION` | No | `us-east-1` | AWS region for Bedrock |
-| `BEDROCK_SECRET_KEY` | For Bedrock | - | AWS secret key |
 
 ### Model-Specific Settings
 
@@ -34,8 +34,8 @@ This document details all configuration options for the Mosaic Eval Harness, inc
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OPENAI_MODEL_ID` | No | `gpt-4o` | Model identifier |
-| `OPENAI_BASE_URL` | No | OpenAI default | API endpoint (use for proxies/Bedrock) |
+| `OPENAI_MODEL_ID` | No | `openai.gpt-oss-120b` | Model identifier |
+| `OPENAI_BASE_URL` | No | OpenAI default | API endpoint (use for proxies/Bedrock Mantle) |
 | `OPENAI_MAX_CONCURRENT` | No | `3` | Concurrent request limit |
 | `OPENAI_TIMEOUT_MS` | No | `60000` | Request timeout (milliseconds) |
 
@@ -43,8 +43,8 @@ This document details all configuration options for the Mosaic Eval Harness, inc
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `ANTHROPIC_MODEL_ID` | No | `claude-3-5-sonnet-latest` | Model identifier |
-| `ANTHROPIC_BASE_URL` | No | Anthropic default | API endpoint |
+| `ANTHROPIC_MODEL_ID` | No | `us.anthropic.claude-sonnet-4-6` | Model identifier |
+| `ANTHROPIC_BASE_URL` | No | Anthropic default | API endpoint (use `bedrock-runtime` for Bedrock Claude) |
 | `ANTHROPIC_MAX_CONCURRENT` | No | `2` | Concurrent request limit |
 | `ANTHROPIC_TIMEOUT_MS` | No | `120000` | Request timeout (higher for longer outputs) |
 
@@ -71,14 +71,14 @@ This document details all configuration options for the Mosaic Eval Harness, inc
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `MOONSHOT_MODEL_ID` | No | `moonshotai.kimi-k2.5` | Model identifier |
-| `MOONSHOT_BASE_URL` | Yes for Bedrock | Bedrock endpoint | Via AWS Bedrock |
+| `MOONSHOT_BASE_URL` | Yes for Bedrock | `https://bedrock-mantle.<region>.api.aws/v1` | Via AWS Bedrock |
 
 #### MiniMax (via Bedrock)
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `MINIMAX_MODEL_ID` | No | `minimax.minimax-m2.5` | Model identifier |
-| `MINIMAX_BASE_URL` | Yes for Bedrock | Bedrock endpoint | Via AWS Bedrock |
+| `MINIMAX_BASE_URL` | Yes for Bedrock | `https://bedrock-mantle.<region>.api.aws/v1` | Via AWS Bedrock |
 
 #### LM Studio (Local)
 
@@ -113,7 +113,7 @@ This document details all configuration options for the Mosaic Eval Harness, inc
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `JUDGE_MODEL_ID` | No | `anthropic` | Default judge provider |
+| `JUDGE_MODEL` | No | `heuristic-judge` | Default judge label used by the scorer cache |
 | `JUDGE_TEMPERATURE` | No | `0.2` | Judge temperature (low for consistency) |
 | `JUDGE_MAX_TOKENS` | No | `1024` | Judge response limit |
 | `JUDGE_TIMEOUT_MS` | No | `120000` | Judge request timeout |
@@ -151,7 +151,7 @@ This document details all configuration options for the Mosaic Eval Harness, inc
 
 ```bash
 # ============================================
-# Mosaic Eval Harness — Environment Configuration
+# Mosaic Eval — Environment Configuration
 # ============================================
 
 # --- Provider API Keys (at least one required) ---
@@ -160,17 +160,18 @@ ANTHROPIC_API_KEY=sk-ant-...
 GOOGLE_API_KEY=AIza...
 MISTRAL_API_KEY=...
 
-# --- AWS Bedrock (optional, for Moonshot/MiniMax) ---
-BEDROCK_API_KEY=AKIA...
-BEDROCK_SECRET_KEY=...
+# --- AWS Bedrock (shared key for OpenAI-compatible, Claude, Moonshot, MiniMax) ---
+BEDROCK_API_KEY=...
+# or AWS_BEARER_TOKEN_BEDROCK=...
 BEDROCK_REGION=us-east-1
 
 # --- Model Configuration ---
-OPENAI_MODEL_ID=gpt-4o-2024-08-06
-OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL_ID=openai.gpt-oss-120b
+OPENAI_BASE_URL=https://bedrock-mantle.us-east-1.api.aws/v1
 OPENAI_MAX_CONCURRENT=3
 
-ANTHROPIC_MODEL_ID=claude-3-5-sonnet-20241022
+ANTHROPIC_MODEL_ID=us.anthropic.claude-sonnet-4-6
+ANTHROPIC_BASE_URL=https://bedrock-runtime.us-east-1.amazonaws.com
 ANTHROPIC_MAX_CONCURRENT=2
 ANTHROPIC_TIMEOUT_MS=120000
 
@@ -181,10 +182,10 @@ MISTRAL_MODEL_ID=mistral-large-latest
 
 # Bedrock-hosted models
 MOONSHOT_MODEL_ID=moonshotai.kimi-k2.5
-MOONSHOT_BASE_URL=https://bedrock-runtime.us-east-1.amazonaws.com
+MOONSHOT_BASE_URL=https://bedrock-mantle.us-east-1.api.aws/v1
 
 MINIMAX_MODEL_ID=minimax.minimax-m2.5
-MINIMAX_BASE_URL=https://bedrock-runtime.us-east-1.amazonaws.com
+MINIMAX_BASE_URL=https://bedrock-mantle.us-east-1.api.aws/v1
 
 # Local models (LM Studio)
 LM_STUDIO_MODEL_ID=local-model
@@ -192,7 +193,7 @@ LM_STUDIO_BASE_URL=http://127.0.0.1:1234/v1
 LM_STUDIO_TIMEOUT_MS=300000
 
 # --- Judge Configuration ---
-JUDGE_MODEL_ID=anthropic
+JUDGE_MODEL=heuristic-judge
 JUDGE_TEMPERATURE=0.2
 JUDGE_MAX_TOKENS=1024
 

@@ -1,4 +1,4 @@
-# Implementation Plan — Mosaic Eval Harness
+# Implementation Plan — Mosaic Eval
 
 > **Total estimated build time: 7–10 days (solo, full-time effort)**
 > Deadline context: Pivotal/SecureBio fellowship application due May 3, 2026.
@@ -39,7 +39,8 @@
   OPENAI_API_KEY=sk-...
   ANTHROPIC_API_KEY=sk-ant-...
   GOOGLE_API_KEY=AIza...
-  JUDGE_MODEL=claude-haiku-4-5        # cheap, fast LLM judge
+  BEDROCK_API_KEY=...
+  JUDGE_MODEL=heuristic-judge        # default in the current build
   EMBEDDING_MODEL=text-embedding-3-small
   ```
 - [ ] Set up directory structure per ARCHITECTURE.md with app logic under `app/` and reusable UI in `app/components/`
@@ -130,8 +131,8 @@ Real biosecurity-sensitive task content would be kept in a private fork shared o
   }
   ```
 
-- [ ] Implement `app/orchestrator/adapters/openai.ts` — wraps GPT-4o and o3
-- [ ] Implement `app/orchestrator/adapters/anthropic.ts` — wraps Claude Opus 4 and Sonnet 4.5
+- [ ] Implement `app/orchestrator/adapters/openai.ts` — wraps direct OpenAI fallback and Bedrock-hosted gpt-oss
+- [ ] Implement `app/orchestrator/adapters/anthropic.ts` — wraps direct Anthropic fallback and Bedrock-hosted Claude Sonnet 4.6
 - [ ] Implement `app/orchestrator/adapters/google.ts` — wraps Gemini 2.5 Pro
 - [ ] Implement `app/orchestrator/adapters/registry.ts` — instantiates all adapters, exports `getAdapter(modelId)` and `listAdapters()`
 - [ ] Add retry logic in each adapter (3 retries, exponential backoff) for rate limits

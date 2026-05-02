@@ -103,12 +103,30 @@ function bedrockRuntimeBaseUrl(region: string) {
   return `https://bedrock-runtime.${region}.amazonaws.com`
 }
 
+function inferBedrockAnthropicGeoPrefix(region: string) {
+  const normalizedRegion = region.trim().toLowerCase()
+  if (normalizedRegion.startsWith("us-")) return "us"
+  if (normalizedRegion.startsWith("eu-")) return "eu"
+  if (["ap-southeast-2", "ap-southeast-4", "ap-southeast-6"].includes(normalizedRegion)) return "au"
+  return "global"
+}
+
+function normalizeBedrockAnthropicModelId(region: string, modelId: string) {
+  if (/^(?:us|eu|au|global)\./i.test(modelId)) return modelId
+  return `${inferBedrockAnthropicGeoPrefix(region)}.${modelId}`
+}
+
+function inferBedrockRuntimeRegion(endpoint: string) {
+  const match = endpoint.match(/^https:\/\/bedrock-runtime\.([^.\/]+)\.amazonaws\.com\/?/i)
+  return match?.[1]
+}
+
 function bedrockOpenAiDisplayName(endpoint: string, modelId: string) {
-  return isBedrockMantleBaseUrl(endpoint) ? "Bedrock OpenAI" : `OpenAI ${modelId}`
+  return isBedrockMantleBaseUrl(endpoint) ? "Bedrock OpenAI OSS-120b" : `OpenAI ${modelId}`
 }
 
 function bedrockAnthropicDisplayName(endpoint: string, modelId: string) {
-  return isBedrockApiBaseUrl(endpoint) ? "Bedrock Claude" : `Anthropic ${modelId}`
+  return isBedrockApiBaseUrl(endpoint) ? "Bedrock Claude Sonnet 4.6" : `Anthropic ${modelId}`
 }
 
 function resolveApiKey(primaryKey: string | undefined, fallbackKey: string | undefined, baseUrl: string | undefined) {
@@ -337,8 +355,17 @@ async function postJson(
           : typeof payload === "string" && payload
             ? payload
             : `HTTP ${response.status}`
+      const detail =
+        typeof payload === "string"
+          ? payload
+          : typeof payload === "object" && payload
+            ? JSON.stringify(payload)
+            : ""
       const error = new Error(message)
       ;(error as Error & { status?: number }).status = response.status
+      if (detail) {
+        ;(error as Error & { detail?: string }).detail = detail
+      }
       throw error
     }
 
@@ -542,7 +569,13 @@ function createAnthropicAdapter(params: {
           isBedrockRuntimeBaseUrl(params.endpoint)
             ? postJson(
                 params.fetchImpl,
-                resolveBedrockConverseUrl(params.endpoint, params.modelVersion),
+                resolveBedrockConverseUrl(
+                  params.endpoint,
+                  normalizeBedrockAnthropicModelId(
+                    inferBedrockRuntimeRegion(params.endpoint) ?? "us-east-1",
+                    params.modelVersion,
+                  ),
+                ),
                 {
                   messages: [
                     {
@@ -593,6 +626,12 @@ function createAnthropicAdapter(params: {
     }
 
     const isBedrockRuntime = isBedrockRuntimeBaseUrl(params.endpoint)
+    const resolvedModelVersion = isBedrockRuntime
+      ? normalizeBedrockAnthropicModelId(
+          inferBedrockRuntimeRegion(params.endpoint) ?? "us-east-1",
+          response.model ?? params.modelVersion,
+        )
+      : response.model ?? params.modelVersion
     const content = isBedrockRuntime
       ? normalizeModelContent(response.output?.message?.content)
       : response.content?.map((part) => part.text ?? "").join("\n").trim() ?? ""
@@ -606,7 +645,7 @@ function createAnthropicAdapter(params: {
     const result = buildModelResponse({
       modelId: params.id,
       provider: "anthropic",
-      modelVersion: response.model ?? params.modelVersion,
+      modelVersion: resolvedModelVersion,
       content,
       finishReason: isBedrockRuntime ? mapBedrockStopReason(response.stopReason) : mapAnthropicStopReason(response.stop_reason),
       promptTokens,
@@ -778,11 +817,13 @@ function createModelCatalog(context: RegistryContext) {
       id: anthropicModel,
       displayName: bedrockAnthropicDisplayName(anthropicEndpoint, anthropicModel),
       provider: "anthropic" as const,
-      modelVersion: anthropicModel,
+      modelVersion: isBedrockRuntimeBaseUrl(anthropicEndpoint)
+        ? normalizeBedrockAnthropicModelId(inferBedrockRuntimeRegion(anthropicEndpoint) ?? bedrockRegion, anthropicModel)
+        : anthropicModel,
       endpoint: anthropicEndpoint,
       configured: anthropicConfigured,
       setupHint:
-        "Set ANTHROPIC_API_KEY for direct Anthropic, or set BEDROCK_API_KEY plus ANTHROPIC_BASE_URL=https://bedrock-mantle.<region>.api.aws/anthropic to use Bedrock-hosted Claude.",
+        "Set ANTHROPIC_API_KEY for direct Anthropic, or set BEDROCK_API_KEY plus ANTHROPIC_BASE_URL=https://bedrock-runtime.<region>.amazonaws.com to use Bedrock-hosted Claude.",
       available: anthropicConfigured,
       maxConcurrent: parsePositiveInt(context.env.ANTHROPIC_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT),
       timeoutMs: clampTimeout(

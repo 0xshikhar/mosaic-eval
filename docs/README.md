@@ -1,6 +1,13 @@
-# Mosaic Eval Harness — Documentation
+# Mosaic Eval — Documentation
 
 > **A local-first, multi-model LLM evaluation harness for biosecurity research that measures whether combining LLMs can produce more capable outputs than any single model alone.**
+
+Current demo stack:
+- OpenAI-compatible Bedrock `gpt-oss-120b` via `bedrock-mantle`
+- Claude Sonnet 4.6 via `bedrock-runtime`
+- Moonshot Kimi K2.5 via `bedrock-mantle`
+- MiniMax M2.5 via `bedrock-mantle`
+- LM Studio local baseline
 
 This folder contains all project documentation — both for developers setting up the system and researchers wanting to understand the methodology.
 
@@ -40,6 +47,7 @@ These documents guide developers through setup, configuration, and troubleshooti
 | [DATA_SCHEMA.md](./DATA_SCHEMA.md) | Database schema, tables, storage model |
 | [API_SPEC.md](./API_SPEC.md) | REST API routes, request/response shapes, error codes |
 | [CONFIGURATION.md](./CONFIGURATION.md) | Environment variables, model setup, provider configuration |
+| [DEMO_VIDEO_SCRIPT.md](./DEMO_VIDEO_SCRIPT.md) | Detailed presenter script and talking points for the demo video |
 | [DEMO_RUNBOOK.md](./DEMO_RUNBOOK.md) | Step-by-step demo walkthrough |
 | [RUNBOOK.md](./RUNBOOK.md) | Production run instructions |
 | [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) | Common issues, debugging tips, circuit breaker behavior |
@@ -71,8 +79,7 @@ These documents guide developers through setup, configuration, and troubleshooti
 
 ## Related Files
 
-- **Root [README.md](../README.md)** — Project overview, tech stack, quick start
-- **Root [app/README.md](../app/README.md)** — App-specific documentation
+- **Root [README.md](../README.md)** — Project overview and current demo stack
 - **Code in `app/`** — Implementation (orchestrator, eval, safety modules)
 
 ---

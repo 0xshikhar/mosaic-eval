@@ -248,7 +248,7 @@ describe("model adapters", () => {
             },
             stopReason: "end_turn",
             usage: { inputTokens: 11, outputTokens: 5, totalTokens: 16 },
-            model: "anthropic.claude-sonnet-4-6",
+            model: "us.anthropic.claude-sonnet-4-6",
           })
         }
 
@@ -288,7 +288,7 @@ describe("model adapters", () => {
       authorization: "Bearer bedrock-test-key",
       "content-type": "application/json",
     })
-    expect(calls[1]?.url).toBe("https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-sonnet-4-6/converse")
+    expect(calls[1]?.url).toBe("https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-sonnet-4-6/converse")
     expect(calls[1]?.init?.headers).toMatchObject({
       authorization: "Bearer bedrock-test-key",
       "content-type": "application/json",
@@ -305,6 +305,7 @@ describe("model adapters", () => {
     })
     expect(openaiResponse.content).toBe("hello from openai.gpt-oss-120b")
     expect(anthropicResponse.content).toBe("hello from bedrock anthropic")
+    expect(anthropicResponse.modelVersion).toBe("us.anthropic.claude-sonnet-4-6")
     expect(moonshotResponse.content).toBe("hello from moonshotai.kimi-k2.5")
     expect(minimaxResponse.content).toBe("hello from minimax.minimax-m2.5")
   })

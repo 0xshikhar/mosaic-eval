@@ -2,7 +2,7 @@
 
 ## 1. Overview
 
-This document catalogs the expected performance, characteristics, and limitations of each supported model provider in the Mosaic Eval Harness. Use this reference for model selection, strategy optimization, and interpreting results.
+This document catalogs the expected performance, characteristics, and limitations of each supported model provider in the Mosaic Eval. Use this reference for model selection, strategy optimization, and interpreting results.
 
 **Important:** Model performance varies by task category, difficulty, and over time (model updates). Treat these as guidelines, not guarantees.
 
@@ -14,8 +14,8 @@ This document catalogs the expected performance, characteristics, and limitation
 
 | Provider | Primary Model | Strengths | Weaknesses | Best For |
 |----------|--------------|-----------|------------|----------|
-| **OpenAI** | GPT-4o / GPT-oss | General competence, API reliability | Expensive, conservative on some topics | General tasks, synthesis |
-| **Anthropic** | Claude 3.5 Sonnet | Nuanced reasoning, long context | High refusal rate, expensive | Judge/scoring, complex reasoning |
+| **OpenAI** | gpt-oss-120b via Bedrock Mantle | General competence, API reliability | Bedrock model access required | General tasks, synthesis |
+| **Anthropic** | Claude Sonnet 4.6 via Bedrock Runtime | Nuanced reasoning, long context | High refusal rate, runtime-only | Judge/scoring, complex reasoning |
 | **Google** | Gemini 2.5 Pro | Large context, multimodal base | Inconsistent availability | Long documents, general bio |
 | **Mistral** | Mistral Large | Cost-effective, European | Less known benchmarks | Budget-conscious runs |
 | **Moonshot** | Kimi K2.5 | Long context specialist | Limited availability | Document analysis |
@@ -26,11 +26,11 @@ This document catalogs the expected performance, characteristics, and limitation
 
 ## 3. Detailed Model Profiles
 
-### OpenAI — GPT-4o / GPT-oss
+### OpenAI — gpt-oss-120b / GPT-4o fallback
 
 **Model ID Examples:**
-- `gpt-4o-2024-08-06`
-- `openai.gpt-oss-120b-1:0` (via Bedrock)
+- `openai.gpt-oss-120b` (via Bedrock Mantle)
+- `gpt-4o` or a dated GPT-4o variant for direct-provider fallback
 
 **Performance Profile:**
 
@@ -74,11 +74,11 @@ This document catalogs the expected performance, characteristics, and limitation
 
 ---
 
-### Anthropic — Claude 3.5 Sonnet
+### Anthropic — Claude Sonnet 4.6
 
 **Model ID Examples:**
-- `claude-3-5-sonnet-20241022`
-- `anthropic.claude-sonnet-4-6` (via Bedrock)
+- `claude-opus-4-1` or another direct Anthropic fallback model
+- `us.anthropic.claude-sonnet-4-6` (via Bedrock Runtime in `us-east-1`)
 
 **Performance Profile:**
 
@@ -92,7 +92,7 @@ This document catalogs the expected performance, characteristics, and limitation
 
 **Characteristics:**
 - **Reliability:** High uptime, occasional rate limits
-- **Speed:** Moderate (slower than GPT-4o)
+- **Speed:** Moderate (slower than gpt-oss-120b)
 - **Cost:** $$$$ (most expensive)
 - **Refusal Pattern:** Very high refusal on dual-use topics
 - **Reasoning Style:** Nuanced, thorough, considers multiple angles
@@ -354,8 +354,8 @@ Task: 50 general biology questions (difficulty 3-4)
 
 | Model | Mean Score | Refusal Rate | Avg Latency | Cost |
 |-------|-----------|--------------|-------------|------|
-| GPT-4o | 91.2 | 7% | 1.2s | $12.50 |
-| Claude 3.5 | 89.5 | 12% | 2.1s | $18.30 |
+| gpt-oss-120b | 91.2 | 7% | 1.2s | $12.50 |
+| Claude Sonnet 4.6 | 89.5 | 12% | 2.1s | $18.30 |
 | Gemini 2.5 | 88.7 | 8% | 1.5s | $8.20 |
 | Mistral Large | 84.3 | 11% | 1.0s | $6.80 |
 | MiniMax | 79.5 | 13% | 1.8s | $4.50 |
@@ -364,8 +364,8 @@ Task: 50 general biology questions (difficulty 3-4)
 *Hardware cost amortized
 
 **Insights:**
-- GPT-4o best quality/latency tradeoff
-- Claude most expensive, not always highest quality
+- gpt-oss-120b best quality/latency tradeoff for the Bedrock bundle
+- Claude Sonnet 4.6 is often strongest when it complies, but costlier and slower
 - Gemini best quality/cost ratio
 - Local models competitive but slow
 
@@ -375,8 +375,8 @@ Task: 30 pathogen-related questions
 
 | Model | Mean Score (when complies) | Refusal Rate | Effective Score |
 |-------|---------------------------|--------------|-----------------|
-| GPT-4o | 82.3 | 32% | 55.9 |
-| Claude 3.5 | 85.1 | 48% | 44.3 |
+| gpt-oss-120b | 82.3 | 32% | 55.9 |
+| Claude Sonnet 4.6 | 85.1 | 48% | 44.3 |
 | Gemini 2.5 | 81.5 | 25% | 61.1 |
 | Mistral Large | 76.8 | 28% | 55.3 |
 
@@ -395,8 +395,8 @@ Task: 30 pathogen-related questions
 
 | Model | Known Issue | Workaround |
 |-------|-------------|------------|
-| GPT-4o | Occasional over-refusal on benign research queries | Use Weakest Safeguard strategy |
-| Claude 3.5 | Very high latency on long outputs | Reduce max_tokens, use for scoring only |
+| gpt-oss-120b | Occasional over-refusal on benign research queries | Use Weakest Safeguard strategy |
+| Claude Sonnet 4.6 | Very high latency on long outputs | Reduce max_tokens, use for scoring only |
 | Gemini | Inconsistent formatting | Add explicit formatting instructions |
 | Mistral | Limited tool use capabilities | Avoid tool-calling tasks |
 | Local models | Hallucinations more frequent | Use as ensemble member, not solo |
@@ -430,16 +430,16 @@ All models are regularly updated by providers. This causes:
 ### For Judge/Scorer Role
 
 **Best Options:**
-1. Claude 3.5 Sonnet (highest calibration quality)
-2. GPT-4o (faster, good calibration)
+1. Claude Sonnet 4.6 (highest calibration quality when using Bedrock Runtime)
+2. gpt-oss-120b (faster, good calibration)
 
 **Why:** Judge needs consistent rubric interpretation and nuanced reasoning.
 
 ### For Synthesis Role
 
 **Best Options:**
-1. GPT-4o (fast, good at combining inputs)
-2. Claude 3.5 (thorough, but slower)
+1. gpt-oss-120b (fast, good at combining inputs)
+2. Claude Sonnet 4.6 (thorough, but slower)
 
 **Why:** Synthesis requires understanding multiple perspectives and creating coherent output.
 
@@ -450,13 +450,13 @@ All models are regularly updated by providers. This causes:
 2. Mistral Large (good, cost-effective)
 3. MiniMax (cheapest, adequate)
 
-**Avoid:** Claude 3.5 (expensive, high refusal)
+**Avoid:** Claude Sonnet 4.6 (expensive, high refusal)
 
 ### For Maximum Quality
 
 **Best Options:**
-1. GPT-4o (reliable, high quality)
-2. Claude 3.5 (when it complies)
+1. gpt-oss-120b (reliable, high quality)
+2. Claude Sonnet 4.6 (when it complies)
 3. Gemini 2.5 (strong alternative)
 
 **Strategy:** Adversarial Cross with all three
@@ -466,9 +466,9 @@ All models are regularly updated by providers. This causes:
 **Best Options:**
 1. Gemini 2.5 (lowest refusal)
 2. Mistral (moderate, consistent)
-3. GPT-4o (acceptable)
+3. gpt-oss-120b (acceptable)
 
-**Avoid:** Claude 3.5 (high refusal on sensitive topics)
+**Avoid:** Claude Sonnet 4.6 (high refusal on sensitive topics)
 
 ---
 
@@ -481,7 +481,7 @@ Use the built-in model tester (`/api/models/test`):
 ```bash
 curl -X POST http://localhost:3000/api/models/test \
   -H "Content-Type: application/json" \
-  -d '{"modelId": "openai", "prompt": "Hello, respond with 'OK'"}'
+  -d '{"modelId": "openai.gpt-oss-120b", "prompt": "Hello, respond with \"OK\""}'
 ```
 
 Expected response:
@@ -510,10 +510,10 @@ Run a 10-task subset with known human labels:
 When citing model performance in publications:
 
 ```
-We evaluated [X] models: GPT-4o (OpenAI, version 2024-08-06), 
-Claude 3.5 Sonnet (Anthropic, version 20241022), and 
-Gemini 2.5 Pro (Google, version exp-03-25). 
-Performance was measured on [date range] using the Mosaic Eval Harness. 
+We evaluated [X] models: gpt-oss-120b (OpenAI, via Bedrock Mantle),
+Claude Sonnet 4.6 (Anthropic, via Bedrock Runtime), and
+Gemini 2.5 Pro (Google, version exp-03-25).
+Performance was measured on [date range] using the Mosaic Eval.
 Reported scores are calibrated against human expert judgments.
 ```
 

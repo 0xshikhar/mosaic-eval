@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mosaic Eval Harness",
+  title: "Mosaic Eval",
   description:
     "Local-first multi-model biosecurity evaluation harness for curated research-task studies.",
 };

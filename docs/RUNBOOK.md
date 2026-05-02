@@ -1,4 +1,4 @@
-# Operations Runbook — Mosaic Eval Harness
+# Operations Runbook — Mosaic Eval
 
 ## 1. Overview
 

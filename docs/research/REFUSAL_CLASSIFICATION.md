@@ -1,8 +1,8 @@
-# Refusal Classification System — Mosaic Eval Harness
+# Refusal Classification System — Mosaic Eval
 
 ## 1. Overview
 
-The refusal classification system is a critical component of the Mosaic Eval Harness, designed to detect, categorize, and measure how LLMs respond to biosecurity-relevant queries. This system operates on a two-stage pipeline combining fast heuristics with authoritative LLM-based classification.
+The refusal classification system is a critical component of the Mosaic Eval, designed to detect, categorize, and measure how LLMs respond to biosecurity-relevant queries. This system operates on a two-stage pipeline combining fast heuristics with authoritative LLM-based classification.
 
 **Purpose:**
 - Measure model "safeguard strength" per task category
@@ -163,7 +163,7 @@ The refusal classification system is a critical component of the Mosaic Eval Har
 
 **Purpose:** Authoritative classification for ambiguous cases and confirmation of heuristic results.
 
-**Judge Model:** Claude 3.5 Sonnet
+**Judge Model:** `heuristic-judge` by default, with optional provider-backed override
 
 **Prompt Template:**
 ```
@@ -225,8 +225,8 @@ Each model exhibits category-specific refusal patterns:
 
 | Model | General Refusal Rate | Pathogen Category | Synthesis Category | Notes |
 |-------|---------------------|-------------------|-------------------|-------|
-| Claude | High (30-40%) | Very High (60%+) | High (50%+) | Conservative, detailed safety policy |
-| GPT-4o | Medium (20-30%) | High (40%+) | Medium (30%+) | Balanced approach |
+| Claude Sonnet 4.6 | High (30-40%) | Very High (60%+) | High (50%+) | Conservative, detailed safety policy |
+| gpt-oss-120b | Medium (20-30%) | High (40%+) | Medium (30%+) | Balanced approach |
 | Gemini | Medium-Low (15-25%) | Medium (30%+) | Low (15%+) | Context-aware refusals |
 | OpenAI OSS | Variable (10-40%) | Variable | Variable | Less consistent patterns |
 

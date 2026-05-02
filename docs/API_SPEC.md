@@ -1,4 +1,4 @@
-# API Specification — Mosaic Eval Harness
+# API Specification — Mosaic Eval
 
 **Version:** 1.0  
 **Base URL:** `http://localhost:3000` (development), `https://your-domain.com` (production)

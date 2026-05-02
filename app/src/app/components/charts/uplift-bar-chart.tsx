@@ -33,14 +33,15 @@ export function UpliftBarChart({
           Per-model scores with the overall mosaic score marked as a reference line.
         </CardDescription>
       </CardHeader>
-      <CardContent className="h-80">
+      <CardContent className="h-80 min-w-0">
         {data.length === 0 ? (
           <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/20 text-sm text-zinc-500">
             No model scores available yet.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} margin={{ top: 16, right: 16, left: 0, bottom: 8 }}>
+          <div className="h-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <BarChart data={data} margin={{ top: 16, right: 16, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
               <XAxis dataKey="modelId" tick={{ fill: "#d4d4d8", fontSize: 12 }} axisLine={{ stroke: "rgba(255,255,255,0.15)" }} />
               <YAxis
@@ -70,8 +71,9 @@ export function UpliftBarChart({
                 }}
               />
               <Bar dataKey="score" fill="#38bdf8" radius={[8, 8, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </CardContent>
     </Card>

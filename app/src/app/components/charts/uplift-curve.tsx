@@ -27,14 +27,15 @@ export function UpliftCurve({ data }: { data: DifficultyPoint[] }) {
           Difficulty buckets sorted from easiest to hardest.
         </CardDescription>
       </CardHeader>
-      <CardContent className="h-80">
+      <CardContent className="h-80 min-w-0">
         {data.length === 0 ? (
           <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-white/10 bg-black/20 text-sm text-zinc-500">
             No uplift data available yet.
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 16, right: 16, left: 0, bottom: 8 }}>
+          <div className="h-full min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+              <LineChart data={data} margin={{ top: 16, right: 16, left: 0, bottom: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
               <XAxis
                 dataKey="difficulty"
@@ -60,8 +61,9 @@ export function UpliftCurve({ data }: { data: DifficultyPoint[] }) {
               />
               <ReferenceLine y={0} stroke="#64748b" strokeDasharray="4 4" />
               <Line type="monotone" dataKey="uplift" stroke="#34d399" strokeWidth={3} dot={{ r: 4 }} />
-            </LineChart>
-          </ResponsiveContainer>
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </CardContent>
     </Card>

@@ -12,11 +12,13 @@ export default async function ModelsPage() {
   const models = listAdapters()
   const readyCount = models.filter((model) => model.available).length
   const pendingCount = models.length - readyCount
+  const bedrockReadyCount = models.filter((model) => model.available && model.endpoint.includes("bedrock-mantle")).length
+  const directReadyCount = models.filter((model) => model.available && !model.endpoint.includes("bedrock-mantle")).length
 
   return (
     <SiteShell
       title="Model setup"
-      description="Configure API keys, point LM Studio at a local server, and test each adapter before you launch a run."
+      description="This page reflects what is already loaded from `.env` and the running local services. Change the env file, restart, and the available models will update here."
       actions={
         <Button asChild variant="outline" className="border-white/15 bg-white/5 text-white hover:bg-white/10">
           <Link href="/runs/new">
@@ -32,14 +34,22 @@ export default async function ModelsPage() {
             <CardHeader className="space-y-2">
               <CardTitle className="flex items-center gap-2 text-white">
                 <FileKey className="size-4 text-emerald-300" />
-                API keys
+                Auto-detected stack
               </CardTitle>
               <CardDescription className="text-zinc-400">
-                Set provider keys in `.env.local`, then restart the dev server.
+                One Bedrock key unlocks four demo agents, while direct provider keys stay available as separate options.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-zinc-300">
-              OpenAI, Anthropic, Google, and Mistral all use their own credentials.
+              {bedrockReadyCount > 0 ? (
+                <span>
+                  {bedrockReadyCount} Bedrock-backed models are ready, and {directReadyCount} direct models are ready.
+                </span>
+              ) : (
+                <span>
+                  Configure `BEDROCK_API_KEY` to unlock the Bedrock-backed bundle, or use direct OpenAI and Anthropic keys instead.
+                </span>
+              )}
             </CardContent>
           </Card>
 

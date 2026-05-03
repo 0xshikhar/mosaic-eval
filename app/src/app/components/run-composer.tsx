@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type { FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
@@ -29,6 +29,7 @@ type ModelOption = {
   provider: string
   available: boolean
   setupHint: string
+  endpoint: string
 }
 
 const strategies = [
@@ -68,6 +69,28 @@ export function RunComposer({
     () => models.filter((model) => selectedModelIds.includes(model.id)).map((model) => model.displayName),
     [models, selectedModelIds],
   )
+  const availableModelIds = useMemo(() => models.filter((model) => model.available).map((model) => model.id), [models])
+  const bedrockModelIds = useMemo(
+    () => models.filter((model) => model.available && model.endpoint.includes("bedrock-mantle")).map((model) => model.id),
+    [models],
+  )
+
+  useEffect(() => {
+    if (selectedModelIds.length === 0) {
+      setSelectedModelIds(availableModelIds)
+      return
+    }
+
+    setSelectedModelIds((current) => {
+      const pruned = current.filter((id) => availableModelIds.includes(id))
+      return pruned.length > 0 ? pruned : availableModelIds
+    })
+  }, [availableModelIds, selectedModelIds.length])
+
+  useEffect(() => {
+    if (models.some((model) => model.id === judgeModelId && model.available)) return
+    setJudgeModelId(models.find((model) => model.available)?.id ?? models[0]?.id ?? "mock-judge")
+  }, [judgeModelId, models])
 
   function toggleTask(taskId: string) {
     setSelectedTaskIds((current) =>
@@ -82,6 +105,20 @@ export function RunComposer({
     setSelectedModelIds((current) =>
       current.includes(modelId) ? current.filter((id) => id !== modelId) : [...current, modelId],
     )
+  }
+
+  function selectAllAvailableModels() {
+    setSelectedModelIds(availableModelIds)
+  }
+
+  function selectBedrockBundle() {
+    if (bedrockModelIds.length > 0) {
+      setSelectedModelIds(bedrockModelIds)
+    }
+  }
+
+  function clearSelectedModels() {
+    setSelectedModelIds([])
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -320,9 +357,22 @@ export function RunComposer({
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-3">
-            {models.map((model) => {
-              const selected = selectedModelIds.includes(model.id)
-              return (
+            <div className="flex flex-wrap gap-2">
+              {bedrockModelIds.length > 0 ? (
+                <Button type="button" variant="outline" className="border-white/10 bg-white/5 text-white hover:bg-white/10" onClick={selectBedrockBundle}>
+                  Select Bedrock bundle
+                </Button>
+              ) : null}
+              <Button type="button" variant="outline" className="border-white/10 bg-white/5 text-white hover:bg-white/10" onClick={selectAllAvailableModels}>
+                Select all ready
+              </Button>
+              <Button type="button" variant="outline" className="border-white/10 bg-white/5 text-white hover:bg-white/10" onClick={clearSelectedModels}>
+                Clear selection
+              </Button>
+            </div>
+              {models.map((model) => {
+                const selected = selectedModelIds.includes(model.id)
+                return (
                 <button
                   key={model.id}
                   type="button"

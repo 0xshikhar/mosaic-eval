@@ -86,6 +86,35 @@ describe("model adapters", () => {
     expect(response.completionTokens).toBe(5)
   })
 
+  test("openai-compatible adapters recover text from alternate response fields", async () => {
+    const registry = createTestRegistry({
+      env: {
+        ...baseEnv,
+        OPENAI_MODEL_ID: "openai.gpt-oss-120b",
+        OPENAI_BASE_URL: "https://bedrock-mantle.us-east-1.api.aws/v1",
+      },
+      fetchImpl: async () =>
+        jsonResponse({
+          choices: [
+            {
+              message: {
+                reasoning_content: "hidden reasoning text",
+                output_text: "visible final text",
+              },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 9, completion_tokens: 7 },
+          model: "openai.gpt-oss-120b",
+        }),
+      now: () => 1000,
+    })
+
+    const response = await registry.getAdapter("openai.gpt-oss-120b").invoke("Say hello")
+
+    expect(response.content).toBe("visible final text")
+  })
+
   test("anthropic adapter sends messages requests", async () => {
     const calls: Array<{ url: string; init?: RequestInit }> = []
     const registry = createTestRegistry({

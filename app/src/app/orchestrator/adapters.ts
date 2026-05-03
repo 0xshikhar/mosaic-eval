@@ -128,21 +128,33 @@ function resolveBedrockConverseUrl(endpoint: string, modelId: string) {
   return new URL(`model/${modelId}/converse`, normalizeBaseUrl(endpoint)).toString()
 }
 
-function normalizeModelContent(content: unknown) {
-  if (typeof content === "string") return content
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        if (typeof part === "string") return part
-        if (part && typeof part === "object" && "text" in part && typeof (part as { text?: unknown }).text === "string") {
-          return (part as { text: string }).text
-        }
-        return ""
-      })
-      .filter(Boolean)
-      .join("\n")
+function extractTextFromValue(value: unknown): string {
+  if (typeof value === "string") return value
+  if (typeof value === "number" || typeof value === "boolean") return String(value)
+  if (Array.isArray(value)) {
+    return value.map((entry) => extractTextFromValue(entry)).filter(Boolean).join("\n")
   }
-  return ""
+  if (!value || typeof value !== "object") return ""
+
+  const record = value as Record<string, unknown>
+  const directText =
+    extractTextFromValue(record.text) ||
+    extractTextFromValue(record.content) ||
+    extractTextFromValue(record.output_text) ||
+    extractTextFromValue(record.outputText) ||
+    extractTextFromValue(record.reasoning_content) ||
+    extractTextFromValue(record.reasoning)
+
+  if (directText) return directText
+
+  return Object.values(record)
+    .map((entry) => extractTextFromValue(entry))
+    .filter(Boolean)
+    .join("\n")
+}
+
+function normalizeModelContent(content: unknown) {
+  return extractTextFromValue(content)
 }
 
 function mapOpenAiFinishReason(value: unknown): ModelResponse["finishReason"] {
@@ -456,13 +468,13 @@ function createOpenAiCompatibleAdapter(params: {
     )
 
     const response = payload as {
-      choices?: Array<{ message?: { content?: unknown }; finish_reason?: unknown }>
+      choices?: Array<{ message?: Record<string, unknown>; finish_reason?: unknown }>
       usage?: { prompt_tokens?: number; completion_tokens?: number }
       id?: string
       model?: string
     }
 
-    const content = normalizeModelContent(response.choices?.[0]?.message?.content)
+    const content = normalizeModelContent(response.choices?.[0]?.message)
     const promptTokens = response.usage?.prompt_tokens ?? estimateTokens(prompt)
     const completionTokens = response.usage?.completion_tokens ?? estimateTokens(content)
 

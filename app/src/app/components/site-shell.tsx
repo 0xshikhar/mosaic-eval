@@ -14,7 +14,7 @@ const navItems = [
 
 export function SiteShell({
   title,
-  eyebrow = "Mosaic",
+  eyebrow = "Mosaic Eval",
   description,
   actions,
   children,

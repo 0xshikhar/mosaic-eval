@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type { FormEvent } from "react"
 import { AlertCircle, Loader2, Send, Shield, Sparkles } from "lucide-react"
 
@@ -30,6 +30,7 @@ type ModelTestResult = {
 
 export function ModelTester({ models }: { models: ModelAdapterSummary[] }) {
   const availableModels = useMemo(() => models.filter((model) => model.available), [models])
+  const [showInactiveModels, setShowInactiveModels] = useState(false)
   const [modelId, setModelId] = useState(availableModels[0]?.id ?? models[0]?.id ?? "")
   const [prompt, setPrompt] = useState(
     "Explain, in a single safe paragraph, how a researcher could evaluate an LLM on a curated biology task set.",
@@ -40,6 +41,13 @@ export function ModelTester({ models }: { models: ModelAdapterSummary[] }) {
   const [isRunning, setIsRunning] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [result, setResult] = useState<ModelTestResult | null>(null)
+  const visibleModels = showInactiveModels || availableModels.length === 0 ? models : availableModels
+
+  useEffect(() => {
+    if (visibleModels.some((model) => model.id === modelId && model.available)) return
+    const nextModel = availableModels[0]?.id ?? models[0]?.id ?? ""
+    setModelId(nextModel)
+  }, [availableModels, modelId, models, visibleModels])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -90,7 +98,7 @@ export function ModelTester({ models }: { models: ModelAdapterSummary[] }) {
             Test a model
           </CardTitle>
           <CardDescription className="text-zinc-400">
-            Use your configured API keys or a local LM Studio server, then send a custom prompt to verify the adapter.
+            This page reads configured environment variables. If Bedrock is enabled, the Bedrock models appear automatically.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -112,13 +120,22 @@ export function ModelTester({ models }: { models: ModelAdapterSummary[] }) {
                 <SelectValue placeholder="Choose a model" />
               </SelectTrigger>
               <SelectContent>
-                {models.map((model) => (
+                {visibleModels.map((model) => (
                   <SelectItem key={model.id} value={model.id} disabled={!model.available}>
-                    {model.displayName} {model.available ? "" : "(setup required)"}
+                    {model.displayName} {model.available ? "" : "(inactive)"}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            {availableModels.length > 0 ? (
+              <button
+                type="button"
+                onClick={() => setShowInactiveModels((current) => !current)}
+                className="text-left text-xs text-emerald-300 underline underline-offset-4"
+              >
+                {showInactiveModels ? "Show configured models only" : "Show inactive models"}
+              </button>
+            ) : null}
           </div>
 
           <div className="grid gap-2">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { startTransition, useEffect, useMemo, useState } from "react"
 import type { FormEvent } from "react"
 import { AlertCircle, Loader2, Send, Shield, Sparkles } from "lucide-react"
 
@@ -46,7 +46,9 @@ export function ModelTester({ models }: { models: ModelAdapterSummary[] }) {
   useEffect(() => {
     if (visibleModels.some((model) => model.id === modelId && model.available)) return
     const nextModel = availableModels[0]?.id ?? models[0]?.id ?? ""
-    setModelId(nextModel)
+    startTransition(() => {
+      setModelId(nextModel)
+    })
   }, [availableModels, modelId, models, visibleModels])
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {

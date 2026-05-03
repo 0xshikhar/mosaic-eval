@@ -39,14 +39,34 @@ function responseCountLabel(count: number) {
   return `${count} response${count === 1 ? "" : "s"}`
 }
 
+function dedupeStepResponses(responses: StepResponse[]) {
+  const seen = new Set<string>()
+
+  return responses.filter((response) => {
+    if (seen.has(response.modelId)) {
+      return false
+    }
+
+    seen.add(response.modelId)
+    return true
+  })
+}
+
+function normalizeStepRow(row: StepRow): StepRow {
+  return {
+    ...row,
+    modelResponses: dedupeStepResponses(row.modelResponses),
+  }
+}
+
 function upsertStep(rows: StepRow[], patch: Partial<StepRow> & { id: string }) {
   const index = rows.findIndex((row) => row.id === patch.id)
   if (index === -1) {
-    return [patch as StepRow, ...rows].sort((left, right) => left.stepIndex - right.stepIndex)
+    return [normalizeStepRow(patch as StepRow), ...rows].sort((left, right) => left.stepIndex - right.stepIndex)
   }
 
   const next = [...rows]
-  next[index] = { ...next[index], ...patch }
+  next[index] = normalizeStepRow({ ...next[index], ...patch })
   return next
 }
 
@@ -61,7 +81,7 @@ export function LiveStepLog({
   runId: string
   initialSteps: StepRow[]
 }) {
-  const [rows, setRows] = useState<StepRow[]>(initialSteps)
+  const [rows, setRows] = useState<StepRow[]>(() => initialSteps.map(normalizeStepRow))
   const [events, setEvents] = useState<LiveEvent[]>([])
 
   useEffect(() => {

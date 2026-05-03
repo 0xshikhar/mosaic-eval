@@ -83,6 +83,39 @@ function parseNumber(value: string | undefined, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
+function isBedrockMantleBaseUrl(value: string | undefined) {
+  return Boolean(value && /https:\/\/bedrock-mantle\.[^.\/]+\.api\.aws\/?/i.test(value))
+}
+
+function bedrockMantleBaseUrl(region: string) {
+  return `https://bedrock-mantle.${region}.api.aws/v1`
+}
+
+function bedrockAnthropicBaseUrl(region: string) {
+  return `https://bedrock-mantle.${region}.api.aws/anthropic`
+}
+
+function bedrockOpenAiDisplayName(endpoint: string, modelId: string) {
+  return isBedrockMantleBaseUrl(endpoint) ? "Bedrock OpenAI" : `OpenAI ${modelId}`
+}
+
+function bedrockAnthropicDisplayName(endpoint: string, modelId: string) {
+  return isBedrockMantleBaseUrl(endpoint) ? "Bedrock Claude" : `Anthropic ${modelId}`
+}
+
+function resolveApiKey(primaryKey: string | undefined, fallbackKey: string | undefined, baseUrl: string | undefined) {
+  if (isBedrockMantleBaseUrl(baseUrl) && fallbackKey?.trim()) return fallbackKey.trim()
+  if (primaryKey?.trim()) return primaryKey.trim()
+  return undefined
+}
+
+function resolveAnthropicMessagesUrl(endpoint: string) {
+  const normalized = normalizeBaseUrl(endpoint)
+  return normalized.endsWith("/messages/") || normalized.endsWith("/messages")
+    ? normalized.replace(/\/$/, "")
+    : new URL("messages", normalized).toString()
+}
+
 function normalizeModelContent(content: unknown) {
   if (typeof content === "string") return content
   if (Array.isArray(content)) {
@@ -309,6 +342,9 @@ function estimateCost(provider: ModelProvider, promptTokens: number, completionT
       return Number(((promptTokens * 0.000005) + (completionTokens * 0.000015)).toFixed(4))
     case "anthropic":
       return Number(((promptTokens * 0.000008) + (completionTokens * 0.000024)).toFixed(4))
+    case "moonshot":
+    case "minimax":
+      return Number(((promptTokens * 0.000006) + (completionTokens * 0.000018)).toFixed(4))
     case "google":
       return Number(((promptTokens * 0.000001) + (completionTokens * 0.000003)).toFixed(4))
     case "mistral":
@@ -321,7 +357,7 @@ function estimateCost(provider: ModelProvider, promptTokens: number, completionT
 }
 
 function createOpenAiCompatibleAdapter(params: {
-  provider: "openai" | "mistral" | "lmstudio"
+  provider: "openai" | "moonshot" | "minimax" | "mistral" | "lmstudio"
   id: string
   displayName: string
   modelVersion: string
@@ -346,6 +382,16 @@ function createOpenAiCompatibleAdapter(params: {
     }
 
     const startedAt = params.now()
+    if (
+      params.provider === "openai" &&
+      isBedrockMantleBaseUrl(params.endpoint) &&
+      !/^openai\.gpt-oss-(20b|120b)(-1:0)?$/i.test(params.modelVersion)
+    ) {
+      throw new Error(
+        "Amazon Bedrock's OpenAI-compatible endpoint exposes gpt-oss models, not GPT-5.x or GPT-4o. Use openai.gpt-oss-120b-1:0 or openai.gpt-oss-20b-1:0 with bedrock-mantle.",
+      )
+    }
+
     const body = {
       model: params.modelVersion,
       messages: [
@@ -447,7 +493,7 @@ function createAnthropicAdapter(params: {
         async () =>
           postJson(
             params.fetchImpl,
-            params.endpoint,
+            resolveAnthropicMessagesUrl(params.endpoint),
             {
               model: params.modelVersion,
               max_tokens: options.maxTokens ?? 1024,
@@ -590,14 +636,31 @@ function createGoogleAdapter(params: {
 }
 
 function createModelCatalog(context: RegistryContext) {
-  const openaiModel = context.env.OPENAI_MODEL_ID?.trim() || "gpt-4o"
-  const anthropicModel = context.env.ANTHROPIC_MODEL_ID?.trim() || "claude-opus-4-1"
+  const bedrockApiKey = context.env.BEDROCK_API_KEY?.trim()
+  const bedrockRegion = context.env.BEDROCK_REGION?.trim() || "us-east-1"
+  const openaiEndpoint = context.env.OPENAI_BASE_URL?.trim() || (bedrockApiKey ? bedrockMantleBaseUrl(bedrockRegion) : "https://api.openai.com/v1")
+  const anthropicEndpoint =
+    context.env.ANTHROPIC_BASE_URL?.trim() || (bedrockApiKey ? bedrockAnthropicBaseUrl(bedrockRegion) : "https://api.anthropic.com/v1/messages")
+  const moonshotEndpoint = context.env.MOONSHOT_BASE_URL?.trim() || bedrockMantleBaseUrl(bedrockRegion)
+  const minimaxEndpoint = context.env.MINIMAX_BASE_URL?.trim() || bedrockMantleBaseUrl(bedrockRegion)
+  const openaiModel = context.env.OPENAI_MODEL_ID?.trim() || (isBedrockMantleBaseUrl(openaiEndpoint) ? "openai.gpt-oss-120b-1:0" : "gpt-4o")
+  const anthropicModel =
+    context.env.ANTHROPIC_MODEL_ID?.trim() || (isBedrockMantleBaseUrl(anthropicEndpoint) ? "anthropic.claude-sonnet-4-6" : "claude-opus-4-1")
+  const moonshotModel = context.env.MOONSHOT_MODEL_ID?.trim() || "moonshotai.kimi-k2.5"
+  const minimaxModel = context.env.MINIMAX_MODEL_ID?.trim() || "minimax.minimax-m2.5"
   const googleModel = context.env.GOOGLE_MODEL_ID?.trim() || "gemini-2.5-pro"
   const mistralModel = context.env.MISTRAL_MODEL_ID?.trim() || "mistral-large-latest"
   const lmStudioModel = context.env.LM_STUDIO_MODEL_ID?.trim() || "local-model"
 
-  const openaiConfigured = Boolean(context.env.OPENAI_API_KEY?.trim())
-  const anthropicConfigured = Boolean(context.env.ANTHROPIC_API_KEY?.trim())
+  const openaiApiKey = resolveApiKey(context.env.OPENAI_API_KEY?.trim(), bedrockApiKey, openaiEndpoint)
+  const anthropicApiKey = resolveApiKey(context.env.ANTHROPIC_API_KEY?.trim(), bedrockApiKey, anthropicEndpoint)
+  const moonshotApiKey = resolveApiKey(undefined, bedrockApiKey, moonshotEndpoint)
+  const minimaxApiKey = resolveApiKey(undefined, bedrockApiKey, minimaxEndpoint)
+
+  const openaiConfigured = Boolean(openaiApiKey)
+  const anthropicConfigured = Boolean(anthropicApiKey)
+  const moonshotConfigured = Boolean(moonshotApiKey)
+  const minimaxConfigured = Boolean(minimaxApiKey)
   const googleConfigured = Boolean(context.env.GOOGLE_API_KEY?.trim())
   const mistralConfigured = Boolean(context.env.MISTRAL_API_KEY?.trim())
   const lmStudioConfigured = Boolean(context.env.LM_STUDIO_BASE_URL?.trim())
@@ -605,12 +668,13 @@ function createModelCatalog(context: RegistryContext) {
   return {
     openai: {
       id: openaiModel,
-      displayName: `OpenAI ${openaiModel}`,
+      displayName: bedrockOpenAiDisplayName(openaiEndpoint, openaiModel),
       provider: "openai" as const,
       modelVersion: openaiModel,
-      endpoint: context.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1",
+      endpoint: openaiEndpoint,
       configured: openaiConfigured,
-      setupHint: "Set OPENAI_API_KEY in your environment, and optionally OPENAI_MODEL_ID or OPENAI_BASE_URL.",
+      setupHint:
+        "Set OPENAI_API_KEY for direct OpenAI, or set BEDROCK_API_KEY plus OPENAI_BASE_URL=https://bedrock-mantle.<region>.api.aws/v1 to use Bedrock-hosted gpt-oss.",
       available: openaiConfigured,
       maxConcurrent: parsePositiveInt(context.env.OPENAI_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT),
       timeoutMs: clampTimeout(
@@ -620,17 +684,49 @@ function createModelCatalog(context: RegistryContext) {
     },
     anthropic: {
       id: anthropicModel,
-      displayName: `Anthropic ${anthropicModel}`,
+      displayName: bedrockAnthropicDisplayName(anthropicEndpoint, anthropicModel),
       provider: "anthropic" as const,
       modelVersion: anthropicModel,
-      endpoint: context.env.ANTHROPIC_BASE_URL?.trim() || "https://api.anthropic.com/v1/messages",
+      endpoint: anthropicEndpoint,
       configured: anthropicConfigured,
       setupHint:
-        "Set ANTHROPIC_API_KEY in your environment, and optionally ANTHROPIC_MODEL_ID or ANTHROPIC_BASE_URL.",
+        "Set ANTHROPIC_API_KEY for direct Anthropic, or set BEDROCK_API_KEY plus ANTHROPIC_BASE_URL=https://bedrock-mantle.<region>.api.aws/anthropic to use Bedrock-hosted Claude.",
       available: anthropicConfigured,
       maxConcurrent: parsePositiveInt(context.env.ANTHROPIC_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT),
       timeoutMs: clampTimeout(
         parseNumber(context.env.ANTHROPIC_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+        DEFAULT_TIMEOUT_MS,
+      ),
+    },
+    moonshot: {
+      id: moonshotModel,
+      displayName: "Bedrock Kimi K2.5",
+      provider: "moonshot" as const,
+      modelVersion: moonshotModel,
+      endpoint: moonshotEndpoint,
+      configured: moonshotConfigured,
+      setupHint:
+        "Set BEDROCK_API_KEY plus MOONSHOT_BASE_URL=https://bedrock-mantle.<region>.api.aws/v1 to use Bedrock-hosted Kimi K2.5.",
+      available: moonshotConfigured,
+      maxConcurrent: parsePositiveInt(context.env.MOONSHOT_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT),
+      timeoutMs: clampTimeout(
+        parseNumber(context.env.MOONSHOT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+        DEFAULT_TIMEOUT_MS,
+      ),
+    },
+    minimax: {
+      id: minimaxModel,
+      displayName: "Bedrock MiniMax M2.5",
+      provider: "minimax" as const,
+      modelVersion: minimaxModel,
+      endpoint: minimaxEndpoint,
+      configured: minimaxConfigured,
+      setupHint:
+        "Set BEDROCK_API_KEY plus MINIMAX_BASE_URL=https://bedrock-mantle.<region>.api.aws/v1 to use Bedrock-hosted MiniMax M2.5.",
+      available: minimaxConfigured,
+      maxConcurrent: parsePositiveInt(context.env.MINIMAX_MAX_CONCURRENT, DEFAULT_MAX_CONCURRENT),
+      timeoutMs: clampTimeout(
+        parseNumber(context.env.MINIMAX_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
         DEFAULT_TIMEOUT_MS,
       ),
     },
@@ -693,11 +789,39 @@ function createModelRegistry(context: RegistryContext) {
       displayName: catalog.openai.displayName,
       modelVersion: catalog.openai.modelVersion,
       endpoint: catalog.openai.endpoint,
-      apiKey: context.env.OPENAI_API_KEY?.trim(),
+      apiKey: resolveApiKey(context.env.OPENAI_API_KEY?.trim(), context.env.BEDROCK_API_KEY?.trim(), catalog.openai.endpoint),
       configured: catalog.openai.configured,
       setupHint: catalog.openai.setupHint,
       maxConcurrent: catalog.openai.maxConcurrent,
       timeoutMs: catalog.openai.timeoutMs,
+      fetchImpl: context.fetchImpl,
+      now: context.now,
+    }),
+    moonshot: createOpenAiCompatibleAdapter({
+      provider: "moonshot",
+      id: catalog.moonshot.id,
+      displayName: catalog.moonshot.displayName,
+      modelVersion: catalog.moonshot.modelVersion,
+      endpoint: catalog.moonshot.endpoint,
+      apiKey: resolveApiKey(undefined, context.env.BEDROCK_API_KEY?.trim(), catalog.moonshot.endpoint),
+      configured: catalog.moonshot.configured,
+      setupHint: catalog.moonshot.setupHint,
+      maxConcurrent: catalog.moonshot.maxConcurrent,
+      timeoutMs: catalog.moonshot.timeoutMs,
+      fetchImpl: context.fetchImpl,
+      now: context.now,
+    }),
+    minimax: createOpenAiCompatibleAdapter({
+      provider: "minimax",
+      id: catalog.minimax.id,
+      displayName: catalog.minimax.displayName,
+      modelVersion: catalog.minimax.modelVersion,
+      endpoint: catalog.minimax.endpoint,
+      apiKey: resolveApiKey(undefined, context.env.BEDROCK_API_KEY?.trim(), catalog.minimax.endpoint),
+      configured: catalog.minimax.configured,
+      setupHint: catalog.minimax.setupHint,
+      maxConcurrent: catalog.minimax.maxConcurrent,
+      timeoutMs: catalog.minimax.timeoutMs,
       fetchImpl: context.fetchImpl,
       now: context.now,
     }),
@@ -736,7 +860,7 @@ function createModelRegistry(context: RegistryContext) {
     displayName: catalog.anthropic.displayName,
     modelVersion: catalog.anthropic.modelVersion,
     endpoint: catalog.anthropic.endpoint,
-    apiKey: context.env.ANTHROPIC_API_KEY?.trim(),
+    apiKey: resolveApiKey(context.env.ANTHROPIC_API_KEY?.trim(), context.env.BEDROCK_API_KEY?.trim(), catalog.anthropic.endpoint),
     configured: catalog.anthropic.configured,
     setupHint: catalog.anthropic.setupHint,
     maxConcurrent: catalog.anthropic.maxConcurrent,
@@ -757,8 +881,15 @@ function createModelRegistry(context: RegistryContext) {
     fetchImpl: context.fetchImpl,
     now: context.now,
   })
-
-  const adapters = [openAiCompatibleAdapters.openai, anthropicAdapter, googleAdapter, openAiCompatibleAdapters.mistral, openAiCompatibleAdapters.lmstudio]
+  const adapters = [
+    openAiCompatibleAdapters.openai,
+    anthropicAdapter,
+    openAiCompatibleAdapters.moonshot,
+    openAiCompatibleAdapters.minimax,
+    googleAdapter,
+    openAiCompatibleAdapters.mistral,
+    openAiCompatibleAdapters.lmstudio,
+  ]
 
   return {
     listAdapters(): ModelAdapterSummary[] {

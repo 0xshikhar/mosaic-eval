@@ -11,6 +11,9 @@ export type ModelProvider =
   | "anthropic"
   | "google"
   | "mistral"
+  | "bedrock"
+  | "moonshot"
+  | "minimax"
   | "lmstudio"
   | "mock"
 

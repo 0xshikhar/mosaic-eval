@@ -144,8 +144,10 @@ cp .env.example .env.local
 # GOOGLE_API_KEY=AIza...
 # BEDROCK_API_KEY=...
 # BEDROCK_REGION=us-east-1
-# OPENAI_MODEL_ID=openai.gpt-oss-120b-1:0
+# OPENAI_MODEL_ID=openai.gpt-oss-120b
+# OPENAI_BASE_URL=https://bedrock-mantle.us-east-1.api.aws/v1
 # ANTHROPIC_MODEL_ID=anthropic.claude-sonnet-4-6
+# ANTHROPIC_BASE_URL=https://bedrock-runtime.us-east-1.amazonaws.com
 # MOONSHOT_MODEL_ID=moonshotai.kimi-k2.5
 # MINIMAX_MODEL_ID=minimax.minimax-m2.5
 

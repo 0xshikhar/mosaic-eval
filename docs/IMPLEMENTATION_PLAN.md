@@ -330,6 +330,8 @@ This is the most complex phase and the heart of the novel contribution.
 
 ## Phase 6 — Dashboard (Day 7–9, ~8 hours)
 
+> Status: implemented in the app. This section is retained as the original dashboard target spec and now matches the delivered `runs/[id]` and results surfaces.
+
 ### Pages
 
 **`/` — Home**

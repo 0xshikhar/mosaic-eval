@@ -41,11 +41,34 @@ mosaic/
 
 ```bash
 bun install
-cp .env.example .env.local        # add API keys and DB_FILE_NAME if needed
+cp app/.env.example app/.env.local
 bun dev
 ```
 
 Default local storage is SQLite through Drizzle. The repo should run without provisioning an external database for first-pass development.
+
+## Model Setup
+
+Fill in the provider keys you want to use inside `app/.env.local`:
+
+- `OPENAI_API_KEY` and `OPENAI_MODEL_ID`
+- `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL_ID`
+- `GOOGLE_API_KEY` and `GOOGLE_MODEL_ID`
+- `MISTRAL_API_KEY` and `MISTRAL_MODEL_ID`
+- `LM_STUDIO_BASE_URL` and `LM_STUDIO_MODEL_ID` for a local OpenAI-compatible server
+- `LM_STUDIO_TIMEOUT_MS` if your local model needs more than the default 30-second cloud timeout
+- `BEDROCK_API_KEY` and `BEDROCK_REGION` for the Bedrock demo stack
+- `MOONSHOT_MODEL_ID` / `MOONSHOT_BASE_URL` for Kimi K2.5 on Bedrock
+- `MINIMAX_MODEL_ID` / `MINIMAX_BASE_URL` for MiniMax M2.5 on Bedrock
+
+For the Bedrock demo flow, use one `BEDROCK_API_KEY` and point the Bedrock-backed models at `https://bedrock-mantle.<region>.api.aws/v1` or `https://bedrock-mantle.<region>.api.aws/anthropic`. The demo stack uses:
+
+- `openai.gpt-oss-120b-1:0`
+- `anthropic.claude-sonnet-4-6`
+- `moonshotai.kimi-k2.5`
+- `minimax.minimax-m2.5`
+
+The app exposes a model test panel at `/models` so you can verify each configured adapter before launching a run.
 
 ---
 
@@ -60,3 +83,4 @@ Default local storage is SQLite through Drizzle. The repo should run without pro
 | [research/info.md](./research/info.md) | Mentor fit, scholarship context, initial market notes |
 | [research/FLAWS_AND_GAPS.md](./research/FLAWS_AND_GAPS.md) | Gap analysis and risk register |
 | [research/SQLITE_ARCHITECTURE.md](./research/SQLITE_ARCHITECTURE.md) | Local-first storage proposal and tradeoffs |
+| [research/METHODOLOGY_NOTE.md](./research/METHODOLOGY_NOTE.md) | Proxy-task validation, human review, and reproducibility plan |

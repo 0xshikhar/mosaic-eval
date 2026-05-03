@@ -8,6 +8,8 @@ const baseEnv = {
   OPENAI_BASE_URL: "https://api.openai.com/v1",
   ANTHROPIC_API_KEY: "sk-anthropic-test",
   ANTHROPIC_MODEL_ID: "claude-opus-4-1",
+  ANTHROPIC_BASE_URL: "https://api.anthropic.com/v1/messages",
+  BEDROCK_API_KEY: "bedrock-test-key",
   GOOGLE_API_KEY: "google-test",
   GOOGLE_MODEL_ID: "gemini-2.5-pro",
   MISTRAL_API_KEY: "mistral-test",
@@ -39,6 +41,8 @@ describe("model adapters", () => {
       expect.arrayContaining([
         "gpt-4o",
         "claude-opus-4-1",
+        "moonshotai.kimi-k2.5",
+        "minimax.minimax-m2.5",
         "gemini-2.5-pro",
         "mistral-large-latest",
         "local-model",
@@ -177,5 +181,85 @@ describe("model adapters", () => {
     })
 
     expect(registry.getCatalog().lmstudio.timeoutMs).toBe(300_000)
+  })
+
+  test("bedrock api key can be reused across openai-compatible and anthropic adapters", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = []
+    const registry = createTestRegistry({
+      env: {
+        OPENAI_MODEL_ID: "openai.gpt-oss-120b-1:0",
+        OPENAI_BASE_URL: "https://bedrock-mantle.us-east-1.api.aws/v1",
+        ANTHROPIC_MODEL_ID: "anthropic.claude-sonnet-4-6",
+        ANTHROPIC_BASE_URL: "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+        BEDROCK_API_KEY: "bedrock-test-key",
+        MOONSHOT_MODEL_ID: "moonshotai.kimi-k2.5",
+        MOONSHOT_BASE_URL: "https://bedrock-mantle.us-east-1.api.aws/v1",
+        MINIMAX_MODEL_ID: "minimax.minimax-m2.5",
+        MINIMAX_BASE_URL: "https://bedrock-mantle.us-east-1.api.aws/v1",
+      },
+      fetchImpl: async (input, init) => {
+        calls.push({ url: String(input), init })
+
+        if (String(input).includes("/chat/completions")) {
+          const body = JSON.parse(String(init?.body)) as { model?: string }
+          return jsonResponse({
+            choices: [{ message: { content: `hello from ${body.model}` }, finish_reason: "stop" }],
+            usage: { prompt_tokens: 10, completion_tokens: 4 },
+            model: body.model,
+          })
+        }
+
+        return jsonResponse({
+          content: [{ text: "hello from bedrock anthropic" }],
+          stop_reason: "end_turn",
+          usage: { input_tokens: 11, output_tokens: 5 },
+          model: "anthropic.claude-sonnet-4-6",
+        })
+      },
+      now: () => 1000,
+    })
+
+    expect(registry.getAdapter("openai.gpt-oss-120b-1:0").available).toBe(true)
+    expect(registry.getAdapter("anthropic.claude-sonnet-4-6").available).toBe(true)
+    expect(registry.getAdapter("moonshotai.kimi-k2.5").available).toBe(true)
+    expect(registry.getAdapter("minimax.minimax-m2.5").available).toBe(true)
+
+    const openaiResponse = await registry.getAdapter("openai.gpt-oss-120b-1:0").invoke("Say hello", {
+      systemPrompt: "Be concise",
+    })
+    const anthropicResponse = await registry.getAdapter("anthropic.claude-sonnet-4-6").invoke("Say hello", {
+      systemPrompt: "Be concise",
+    })
+    const moonshotResponse = await registry.getAdapter("moonshotai.kimi-k2.5").invoke("Say hello", {
+      systemPrompt: "Be concise",
+    })
+    const minimaxResponse = await registry.getAdapter("minimax.minimax-m2.5").invoke("Say hello", {
+      systemPrompt: "Be concise",
+    })
+
+    expect(calls[0]?.url).toBe("https://bedrock-mantle.us-east-1.api.aws/v1/chat/completions")
+    expect(calls[0]?.init?.headers).toMatchObject({
+      authorization: "Bearer bedrock-test-key",
+      "content-type": "application/json",
+    })
+    expect(calls[1]?.url).toBe("https://bedrock-mantle.us-east-1.api.aws/anthropic/messages")
+    expect(calls[1]?.init?.headers).toMatchObject({
+      "x-api-key": "bedrock-test-key",
+      "anthropic-version": "2023-06-01",
+    })
+    expect(calls[2]?.url).toBe("https://bedrock-mantle.us-east-1.api.aws/v1/chat/completions")
+    expect(calls[2]?.init?.headers).toMatchObject({
+      authorization: "Bearer bedrock-test-key",
+      "content-type": "application/json",
+    })
+    expect(calls[3]?.url).toBe("https://bedrock-mantle.us-east-1.api.aws/v1/chat/completions")
+    expect(calls[3]?.init?.headers).toMatchObject({
+      authorization: "Bearer bedrock-test-key",
+      "content-type": "application/json",
+    })
+    expect(openaiResponse.content).toBe("hello from openai.gpt-oss-120b-1:0")
+    expect(anthropicResponse.content).toBe("hello from bedrock anthropic")
+    expect(moonshotResponse.content).toBe("hello from moonshotai.kimi-k2.5")
+    expect(minimaxResponse.content).toBe("hello from minimax.minimax-m2.5")
   })
 })

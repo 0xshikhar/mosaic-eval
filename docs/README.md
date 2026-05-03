@@ -1,86 +1,85 @@
-# Mosaic Eval Harness
+# Mosaic Eval Harness — Documentation
 
-> **A local-first, multi-model biosecurity evaluation harness that measures whether combining LLMs can produce more capable or more harmful bio-related outputs than any single model alone.**
+> **A local-first, multi-model LLM evaluation harness for biosecurity research that measures whether combining LLMs can produce more capable outputs than any single model alone.**
 
-The core research question is whether agentic or adversarial cross-model workflows create measurable uplift in biosecurity-relevant tasks. Existing benchmarks mostly test models in isolation. This project evaluates the combined behavior of multiple model providers, while keeping the public repo limited to non-sensitive proxy tasks.
-
----
-
-## Repository Structure
-
-```
-mosaic/
-├── README.md                    ← this file
-├── docs/
-│   ├── ARCHITECTURE.md          ← system design, data flow, component boundaries
-│   ├── IMPLEMENTATION_PLAN.md   ← phased build plan, milestones, task breakdown
-│   ├── DATA_SCHEMA.md           ← canonical data model / storage sketch
-│   ├── API_SPEC.md              ← internal API routes, request/response shapes
-│   └── research/
-│       ├── info.md              ← scholarship / mentor fit notes
-│       ├── FLAWS_AND_GAPS.md    ← gap analysis and risks
-│       └── SQLITE_ARCHITECTURE.md ← local-first storage proposal
-├── app/                         ← Next.js routes, pages, db, orchestration, eval, safety
-│   ├── api/                     ← route handlers
-│   ├── db/                      ← Drizzle client, schema, bootstrap helpers
-│   ├── components/              ← reusable UI, charts, forms, design system
-│   ├── orchestrator/            ← run dispatcher and strategies
-│   ├── eval/                    ← refusal, scoring, uplift, consistency
-│   ├── safety/                  ← prompt checks, rate limits, audit hooks
-│   ├── tasks/                   ← loader, schema, categories
-│   └── analysis/                ← exports, report generation, summaries
-├── data/                        ← task corpora, fixtures, calibration sets
-├── scripts/                     ← importers and one-off maintenance scripts
-├── tests/                       ← unit and integration tests
-└── types/                       ← shared TypeScript types
-```
+This folder contains all project documentation — both for developers setting up the system and researchers wanting to understand the methodology.
 
 ---
 
-## Quick Start
+## Documentation Overview
 
-```bash
-bun install
-cp app/.env.example app/.env.local
-bun dev
-```
-
-Default local storage is SQLite through Drizzle. The repo should run without provisioning an external database for first-pass development.
-
-## Model Setup
-
-Fill in the provider keys you want to use inside `app/.env.local`:
-
-- `OPENAI_API_KEY` and `OPENAI_MODEL_ID`
-- `ANTHROPIC_API_KEY` and `ANTHROPIC_MODEL_ID`
-- `GOOGLE_API_KEY` and `GOOGLE_MODEL_ID`
-- `MISTRAL_API_KEY` and `MISTRAL_MODEL_ID`
-- `LM_STUDIO_BASE_URL` and `LM_STUDIO_MODEL_ID` for a local OpenAI-compatible server
-- `LM_STUDIO_TIMEOUT_MS` if your local model needs more than the default 30-second cloud timeout
-- `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK`, plus `BEDROCK_REGION`, for the Bedrock demo stack
-- `MOONSHOT_MODEL_ID` / `MOONSHOT_BASE_URL` for Kimi K2.5 on Bedrock
-- `MINIMAX_MODEL_ID` / `MINIMAX_BASE_URL` for MiniMax M2.5 on Bedrock
-
-For the Bedrock demo flow, use one Bedrock API key and point the Bedrock-backed models at `https://bedrock-mantle.<region>.api.aws/v1` for OpenAI-compatible models and `https://bedrock-runtime.<region>.amazonaws.com` for Claude. The demo stack uses:
-
-- `openai.gpt-oss-120b`
-- `anthropic.claude-sonnet-4-6`
-- `moonshotai.kimi-k2.5`
-- `minimax.minimax-m2.5`
-
-The app exposes a model test panel at `/models` so you can verify each configured adapter before launching a run.
+| Category | Audience | What You'll Find |
+|----------|----------|-------------------|
+| **Research** | Researchers, judges, reviewers | Methodology, scoring, uplift calculations, strategies |
+| **Technical** | Developers, contributors | Architecture, API, schema, configuration, troubleshooting |
 
 ---
 
-## Docs Index
+## Research Documentation (`docs/research/`)
 
-| Document | What It Covers |
-|---|---|
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | Full system design, component responsibilities, data flow |
-| [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | Phased build plan with tasks, milestones, and daily targets |
-| [DATA_SCHEMA.md](./DATA_SCHEMA.md) | Storage model, tables, fixtures, eval data formats |
-| [API_SPEC.md](./API_SPEC.md) | Next.js API routes, request/response shapes, error codes |
-| [research/info.md](./research/info.md) | Mentor fit, scholarship context, initial market notes |
-| [research/FLAWS_AND_GAPS.md](./research/FLAWS_AND_GAPS.md) | Gap analysis and risk register |
-| [research/SQLITE_ARCHITECTURE.md](./research/SQLITE_ARCHITECTURE.md) | Local-first storage proposal and tradeoffs |
-| [research/METHODOLOGY_NOTE.md](./research/METHODOLOGY_NOTE.md) | Proxy-task validation, human review, and reproducibility plan |
+These documents explain the research methodology and evaluation framework.
+
+| Document | Purpose |
+|----------|---------|
+| [METHODOLOGY.md](./research/METHODOLOGY.md) | Core research question, hypothesis, evaluation approach, reproducibility |
+| [RUBRIC.md](./research/RUBRIC.md) | Full scoring rubric (0-100) with examples for each score level |
+| [REFUSAL_CLASSIFICATION.md](./research/REFUSAL_CLASSIFICATION.md) | How refusal detection works (keyword heuristics + LLM judge) |
+| [UPLIFT_CALCULATION.md](./research/UPLIFT_CALCULATION.md) | Mathematical formulas for calculating mosaic uplift |
+| [STRATEGIES_COMPARISON.md](./research/STRATEGIES_COMPARISON.md) | When to use each routing strategy (Round Robin, Adversarial Cross, etc.) |
+| [MODEL_BENCHMARKS.md](./research/MODEL_BENCHMARKS.md) | Expected performance per model, known limitations |
+| [METHODOLOGY_NOTE.md](./research/METHODOLOGY_NOTE.md) | Additional methodology notes and context |
+
+
+## Technical Documentation (`docs/`)
+
+These documents guide developers through setup, configuration, and troubleshooting.
+
+| Document | Purpose |
+|----------|---------|
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | System design, component responsibilities, data flow |
+| [DATA_SCHEMA.md](./DATA_SCHEMA.md) | Database schema, tables, storage model |
+| [API_SPEC.md](./API_SPEC.md) | REST API routes, request/response shapes, error codes |
+| [CONFIGURATION.md](./CONFIGURATION.md) | Environment variables, model setup, provider configuration |
+| [DEMO_RUNBOOK.md](./DEMO_RUNBOOK.md) | Step-by-step demo walkthrough |
+| [RUNBOOK.md](./RUNBOOK.md) | Production run instructions |
+| [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) | Common issues, debugging tips, circuit breaker behavior |
+| [IMPLEMENTATION_PLAN.md](./IMPLEMENTATION_PLAN.md) | Phased build plan with milestones |
+
+---
+
+## Quick Access by Goal
+
+### For Researchers
+1. Start with [METHODOLOGY.md](./research/METHODOLOGY.md)
+2. Understand the [RUBRIC.md](./research/RUBRIC.md) for scoring
+3. Review [UPLIFT_CALCULATION.md](./research/UPLIFT_CALCULATION.md) for metrics
+4. Check [STRATEGIES_COMPARISON.md](./research/STRATEGIES_COMPARISON.md) for strategy selection
+
+### For Developers
+1. Read [ARCHITECTURE.md](./ARCHITECTURE.md) for system overview
+2. Follow [CONFIGURATION.md](./CONFIGURATION.md) to set up models
+3. Use [DEMO_RUNBOOK.md](./DEMO_RUNBOOK.md) to run your first eval
+4. Reference [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) when issues arise
+
+### For Judges/Reviewers
+1. Review [METHODOLOGY.md](./research/METHODOLOGY.md) for the research question
+2. Read [RUBRIC.md](./research/RUBRIC.md) to understand scoring
+3. Check [REFUSAL_CLASSIFICATION.md](./research/REFUSAL_CLASSIFICATION.md) for response classification
+4. Review [UPLIFT_CALCULATION.md](./research/UPLIFT_CALCULATION.md) for metrics definition
+
+---
+
+## Related Files
+
+- **Root [README.md](../README.md)** — Project overview, tech stack, quick start
+- **Root [app/README.md](../app/README.md)** — App-specific documentation
+- **Code in `app/`** — Implementation (orchestrator, eval, safety modules)
+
+---
+
+## Getting Help
+
+If you can't find what you need:
+1. Check [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for common issues
+2. Review the relevant category above
+3. Check the main project [README.md](../README.md) for additional context

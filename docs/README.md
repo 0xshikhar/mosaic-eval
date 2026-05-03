@@ -57,13 +57,13 @@ Fill in the provider keys you want to use inside `app/.env.local`:
 - `MISTRAL_API_KEY` and `MISTRAL_MODEL_ID`
 - `LM_STUDIO_BASE_URL` and `LM_STUDIO_MODEL_ID` for a local OpenAI-compatible server
 - `LM_STUDIO_TIMEOUT_MS` if your local model needs more than the default 30-second cloud timeout
-- `BEDROCK_API_KEY` and `BEDROCK_REGION` for the Bedrock demo stack
+- `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK`, plus `BEDROCK_REGION`, for the Bedrock demo stack
 - `MOONSHOT_MODEL_ID` / `MOONSHOT_BASE_URL` for Kimi K2.5 on Bedrock
 - `MINIMAX_MODEL_ID` / `MINIMAX_BASE_URL` for MiniMax M2.5 on Bedrock
 
-For the Bedrock demo flow, use one `BEDROCK_API_KEY` and point the Bedrock-backed models at `https://bedrock-mantle.<region>.api.aws/v1` or `https://bedrock-mantle.<region>.api.aws/anthropic`. The demo stack uses:
+For the Bedrock demo flow, use one Bedrock API key and point the Bedrock-backed models at `https://bedrock-mantle.<region>.api.aws/v1` for OpenAI-compatible models and `https://bedrock-runtime.<region>.amazonaws.com` for Claude. The demo stack uses:
 
-- `openai.gpt-oss-120b-1:0`
+- `openai.gpt-oss-120b`
 - `anthropic.claude-sonnet-4-6`
 - `moonshotai.kimi-k2.5`
 - `minimax.minimax-m2.5`

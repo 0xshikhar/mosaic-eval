@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto"
 
 import { listUpliftMetricCandidates } from "@/app/db/store"
+import { normalizeSelection, uniqueModelIds } from "@/app/orchestrator/selection"
 import type { ModelResponse, RoutingStrategy } from "@/app/orchestrator/types"
 
 export interface StrategySelection {
@@ -102,67 +103,69 @@ function extractHighlights(text: string) {
 }
 
 export function createStrategyPlanner(context: StrategyPlannerContext) {
+  const availableModelIds = uniqueModelIds(context.modelIds)
+
   return {
     async selectStepModels(step: StepContext): Promise<StrategySelection> {
       const seed = `${context.runId}:${step.taskId}:${step.stepId}:${step.stepIndex}`
-      const baselineRandom = pickDeterministicModel(context.modelIds, `${seed}:baseline-random`)
-      const baselineSolo = context.modelIds[0] ?? null
+      const baselineRandom = pickDeterministicModel(availableModelIds, `${seed}:baseline-random`)
+      const baselineSolo = availableModelIds[0] ?? null
 
       switch (step.strategy) {
         case "ADVERSARIAL_CROSS":
-          return {
-            modelIds: [...context.modelIds],
+          return normalizeSelection({
+            modelIds: [...availableModelIds],
             baselineModelIds: step.includeBaselineRuns ? [baselineSolo, baselineRandom].filter(Boolean) as string[] : [],
             mode: "parallel",
             synthesize: true,
             strategyLabel: "adversarial_cross",
-          }
+          })
         case "PARALLEL_BLAST":
-          return {
-            modelIds: [...context.modelIds],
+          return normalizeSelection({
+            modelIds: [...availableModelIds],
             baselineModelIds: step.includeBaselineRuns ? [baselineSolo, baselineRandom].filter(Boolean) as string[] : [],
             mode: "parallel",
             synthesize: false,
             strategyLabel: "parallel_blast",
-          }
+          })
         case "SOLO":
-          return {
+          return normalizeSelection({
             modelIds: baselineSolo ? [baselineSolo] : [],
             baselineModelIds: step.includeBaselineRuns && baselineRandom ? [baselineRandom] : [],
             mode: "single",
             synthesize: false,
             strategyLabel: "solo",
-          }
+          })
         case "RANDOM": {
-          const chosen = baselineRandom ?? roundRobinModel(context.modelIds, step.stepIndex)
-          return {
+          const chosen = baselineRandom ?? roundRobinModel(availableModelIds, step.stepIndex)
+          return normalizeSelection({
             modelIds: chosen ? [chosen] : [],
             baselineModelIds: step.includeBaselineRuns && baselineSolo ? [baselineSolo] : [],
             mode: "single",
             synthesize: false,
             strategyLabel: "random",
-          }
+          })
         }
         case "WEAKEST_SAFEGUARD": {
-          const chosen = await pickWeakestSafeguardModel(step.taskCategory, context.modelIds, seed)
-          return {
+          const chosen = await pickWeakestSafeguardModel(step.taskCategory, availableModelIds, seed)
+          return normalizeSelection({
             modelIds: chosen ? [chosen] : [],
             baselineModelIds: step.includeBaselineRuns && baselineRandom ? [baselineRandom] : [],
             mode: "single",
             synthesize: false,
             strategyLabel: "weakest_safeguard",
-          }
+          })
         }
         case "ROUND_ROBIN":
         default: {
-          const chosen = roundRobinModel(context.modelIds, step.stepIndex)
-          return {
+          const chosen = roundRobinModel(availableModelIds, step.stepIndex)
+          return normalizeSelection({
             modelIds: chosen ? [chosen] : [],
             baselineModelIds: step.includeBaselineRuns && baselineRandom ? [baselineRandom] : [],
             mode: "single",
             synthesize: false,
             strategyLabel: "round_robin",
-          }
+          })
         }
       }
     },

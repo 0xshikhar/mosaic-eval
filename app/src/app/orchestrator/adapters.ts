@@ -87,12 +87,20 @@ function isBedrockMantleBaseUrl(value: string | undefined) {
   return Boolean(value && /https:\/\/bedrock-mantle\.[^.\/]+\.api\.aws\/?/i.test(value))
 }
 
+function isBedrockRuntimeBaseUrl(value: string | undefined) {
+  return Boolean(value && /https:\/\/bedrock-runtime\.[^.\/]+\.amazonaws\.com\/?/i.test(value))
+}
+
+function isBedrockApiBaseUrl(value: string | undefined) {
+  return isBedrockMantleBaseUrl(value) || isBedrockRuntimeBaseUrl(value)
+}
+
 function bedrockMantleBaseUrl(region: string) {
   return `https://bedrock-mantle.${region}.api.aws/v1`
 }
 
-function bedrockAnthropicBaseUrl(region: string) {
-  return `https://bedrock-mantle.${region}.api.aws/anthropic`
+function bedrockRuntimeBaseUrl(region: string) {
+  return `https://bedrock-runtime.${region}.amazonaws.com`
 }
 
 function bedrockOpenAiDisplayName(endpoint: string, modelId: string) {
@@ -100,11 +108,11 @@ function bedrockOpenAiDisplayName(endpoint: string, modelId: string) {
 }
 
 function bedrockAnthropicDisplayName(endpoint: string, modelId: string) {
-  return isBedrockMantleBaseUrl(endpoint) ? "Bedrock Claude" : `Anthropic ${modelId}`
+  return isBedrockApiBaseUrl(endpoint) ? "Bedrock Claude" : `Anthropic ${modelId}`
 }
 
 function resolveApiKey(primaryKey: string | undefined, fallbackKey: string | undefined, baseUrl: string | undefined) {
-  if (isBedrockMantleBaseUrl(baseUrl) && fallbackKey?.trim()) return fallbackKey.trim()
+  if (isBedrockApiBaseUrl(baseUrl) && fallbackKey?.trim()) return fallbackKey.trim()
   if (primaryKey?.trim()) return primaryKey.trim()
   return undefined
 }
@@ -114,6 +122,10 @@ function resolveAnthropicMessagesUrl(endpoint: string) {
   return normalized.endsWith("/messages/") || normalized.endsWith("/messages")
     ? normalized.replace(/\/$/, "")
     : new URL("messages", normalized).toString()
+}
+
+function resolveBedrockConverseUrl(endpoint: string, modelId: string) {
+  return new URL(`model/${modelId}/converse`, normalizeBaseUrl(endpoint)).toString()
 }
 
 function normalizeModelContent(content: unknown) {
@@ -140,6 +152,20 @@ function mapOpenAiFinishReason(value: unknown): ModelResponse["finishReason"] {
     case "length":
       return "length"
     case "content_filter":
+      return "content_filter"
+    default:
+      return "error"
+  }
+}
+
+function mapBedrockStopReason(value: unknown): ModelResponse["finishReason"] {
+  switch (String(value ?? "end_turn")) {
+    case "end_turn":
+      return "stop"
+    case "max_tokens":
+      return "length"
+    case "content_filtered":
+    case "guardrail_intervened":
       return "content_filter"
     default:
       return "error"
@@ -345,6 +371,9 @@ function estimateCost(provider: ModelProvider, promptTokens: number, completionT
     case "moonshot":
     case "minimax":
       return Number(((promptTokens * 0.000006) + (completionTokens * 0.000018)).toFixed(4))
+    case "moonshot":
+    case "minimax":
+      return Number(((promptTokens * 0.000006) + (completionTokens * 0.000018)).toFixed(4))
     case "google":
       return Number(((promptTokens * 0.000001) + (completionTokens * 0.000003)).toFixed(4))
     case "mistral":
@@ -385,10 +414,10 @@ function createOpenAiCompatibleAdapter(params: {
     if (
       params.provider === "openai" &&
       isBedrockMantleBaseUrl(params.endpoint) &&
-      !/^openai\.gpt-oss-(20b|120b)(-1:0)?$/i.test(params.modelVersion)
+      !/^openai\.gpt-oss-(20b|120b)$/i.test(params.modelVersion)
     ) {
       throw new Error(
-        "Amazon Bedrock's OpenAI-compatible endpoint exposes gpt-oss models, not GPT-5.x or GPT-4o. Use openai.gpt-oss-120b-1:0 or openai.gpt-oss-20b-1:0 with bedrock-mantle.",
+        "Amazon Bedrock's OpenAI-compatible endpoint exposes gpt-oss models, not GPT-5.x or GPT-4o. Use openai.gpt-oss-120b or openai.gpt-oss-20b with bedrock-mantle.",
       )
     }
 
@@ -437,7 +466,7 @@ function createOpenAiCompatibleAdapter(params: {
     const promptTokens = response.usage?.prompt_tokens ?? estimateTokens(prompt)
     const completionTokens = response.usage?.completion_tokens ?? estimateTokens(content)
 
-    return buildModelResponse({
+    const result = buildModelResponse({
       modelId: params.id,
       provider: params.provider,
       modelVersion: response.model ?? params.modelVersion,
@@ -449,6 +478,10 @@ function createOpenAiCompatibleAdapter(params: {
       rawResponse: payload,
       costUsd: estimateCost(params.provider, promptTokens, completionTokens),
     })
+
+    console.log(`[AGENT_RESPONSE] ${params.provider.toUpperCase()} | model: ${params.id} | finish: ${result.finishReason} | promptTokens: ${result.promptTokens} | completionTokens: ${result.completionTokens} | latency: ${result.latencyMs}ms | cost: $${result.costUsd} | content preview: ${result.content.slice(0, 100)}...`)
+
+    return result
   }
 
   return {
@@ -488,53 +521,92 @@ function createAnthropicAdapter(params: {
     }
 
     const startedAt = params.now()
+
+    console.log(`[AGENT_CALL] ANTHROPIC | model: ${params.id} | version: ${params.modelVersion} | temp: ${options.temperature ?? 0.2} | maxTokens: ${options.maxTokens ?? 1024} | prompt length: ${prompt.length} chars`)
+
     const payload = await gate.run(() =>
       withRetries(
         async () =>
-          postJson(
-            params.fetchImpl,
-            resolveAnthropicMessagesUrl(params.endpoint),
-            {
-              model: params.modelVersion,
-              max_tokens: options.maxTokens ?? 1024,
-              temperature: options.temperature ?? 0.2,
-              system: options.systemPrompt,
-              messages: [{ role: "user", content: prompt }],
-            },
-            {
-              "content-type": "application/json",
-              "x-api-key": params.apiKey!,
-              "anthropic-version": "2023-06-01",
-            },
-            clampTimeout(options.timeoutMs ?? params.timeoutMs, params.timeoutMs),
-          ),
+          isBedrockRuntimeBaseUrl(params.endpoint)
+            ? postJson(
+                params.fetchImpl,
+                resolveBedrockConverseUrl(params.endpoint, params.modelVersion),
+                {
+                  messages: [
+                    {
+                      role: "user",
+                      content: [{ text: prompt }],
+                    },
+                  ],
+                  system: options.systemPrompt ? [{ text: options.systemPrompt }] : undefined,
+                  inferenceConfig: {
+                    maxTokens: options.maxTokens ?? 1024,
+                    temperature: options.temperature ?? 0.2,
+                  },
+                },
+                {
+                  "content-type": "application/json",
+                  authorization: `Bearer ${params.apiKey!}`,
+                },
+                clampTimeout(options.timeoutMs ?? params.timeoutMs, params.timeoutMs),
+              )
+            : postJson(
+                params.fetchImpl,
+                resolveAnthropicMessagesUrl(params.endpoint),
+                {
+                  model: params.modelVersion,
+                  max_tokens: options.maxTokens ?? 1024,
+                  temperature: options.temperature ?? 0.2,
+                  system: options.systemPrompt,
+                  messages: [{ role: "user", content: prompt }],
+                },
+                {
+                  "content-type": "application/json",
+                  "x-api-key": params.apiKey!,
+                  "anthropic-version": "2023-06-01",
+                },
+                clampTimeout(options.timeoutMs ?? params.timeoutMs, params.timeoutMs),
+              ),
         DEFAULT_RETRY,
       ),
     )
 
     const response = payload as {
       content?: Array<{ text?: string }>
+      output?: { message?: { content?: Array<{ text?: string }> } }
       stop_reason?: unknown
-      usage?: { input_tokens?: number; output_tokens?: number }
+      stopReason?: unknown
+      usage?: { input_tokens?: number; output_tokens?: number; inputTokens?: number; outputTokens?: number }
       model?: string
     }
 
-    const content = response.content?.map((part) => part.text ?? "").join("\n").trim() ?? ""
-    const promptTokens = response.usage?.input_tokens ?? estimateTokens(prompt)
-    const completionTokens = response.usage?.output_tokens ?? estimateTokens(content)
+    const isBedrockRuntime = isBedrockRuntimeBaseUrl(params.endpoint)
+    const content = isBedrockRuntime
+      ? normalizeModelContent(response.output?.message?.content)
+      : response.content?.map((part) => part.text ?? "").join("\n").trim() ?? ""
+    const promptTokens = isBedrockRuntime
+      ? response.usage?.inputTokens ?? response.usage?.input_tokens ?? estimateTokens(prompt)
+      : response.usage?.input_tokens ?? estimateTokens(prompt)
+    const completionTokens = isBedrockRuntime
+      ? response.usage?.outputTokens ?? response.usage?.output_tokens ?? estimateTokens(content)
+      : response.usage?.output_tokens ?? estimateTokens(content)
 
-    return buildModelResponse({
+    const result = buildModelResponse({
       modelId: params.id,
       provider: "anthropic",
       modelVersion: response.model ?? params.modelVersion,
       content,
-      finishReason: mapAnthropicStopReason(response.stop_reason),
+      finishReason: isBedrockRuntime ? mapBedrockStopReason(response.stopReason) : mapAnthropicStopReason(response.stop_reason),
       promptTokens,
       completionTokens,
       latencyMs: params.now() - startedAt,
       rawResponse: payload,
       costUsd: estimateCost("anthropic", promptTokens, completionTokens),
     })
+
+    console.log(`[AGENT_RESPONSE] ANTHROPIC | model: ${params.id} | finish: ${result.finishReason} | promptTokens: ${result.promptTokens} | completionTokens: ${result.completionTokens} | latency: ${result.latencyMs}ms | cost: $${result.costUsd} | content preview: ${result.content.slice(0, 100)}...`)
+
+    return result
   }
 
   return {
@@ -573,6 +645,9 @@ function createGoogleAdapter(params: {
     }
 
     const startedAt = params.now()
+
+    console.log(`[AGENT_CALL] GOOGLE | model: ${params.id} | version: ${params.modelVersion} | temp: ${options.temperature ?? 0.2} | maxTokens: ${options.maxTokens ?? 1024} | prompt length: ${prompt.length} chars`)
+
     const payload = await gate.run(() =>
       withRetries(
         async () =>
@@ -609,7 +684,7 @@ function createGoogleAdapter(params: {
     const promptTokens = response.usageMetadata?.promptTokenCount ?? estimateTokens(prompt)
     const completionTokens = response.usageMetadata?.candidatesTokenCount ?? estimateTokens(content)
 
-    return buildModelResponse({
+    const result = buildModelResponse({
       modelId: params.id,
       provider: "google",
       modelVersion: response.modelVersion ?? params.modelVersion,
@@ -621,6 +696,10 @@ function createGoogleAdapter(params: {
       rawResponse: payload,
       costUsd: estimateCost("google", promptTokens, completionTokens),
     })
+
+    console.log(`[AGENT_RESPONSE] GOOGLE | model: ${params.id} | finish: ${result.finishReason} | promptTokens: ${result.promptTokens} | completionTokens: ${result.completionTokens} | latency: ${result.latencyMs}ms | cost: $${result.costUsd} | content preview: ${result.content.slice(0, 100)}...`)
+
+    return result
   }
 
   return {
@@ -636,16 +715,17 @@ function createGoogleAdapter(params: {
 }
 
 function createModelCatalog(context: RegistryContext) {
-  const bedrockApiKey = context.env.BEDROCK_API_KEY?.trim()
+  const bedrockApiKey = context.env.BEDROCK_API_KEY?.trim() || context.env.AWS_BEARER_TOKEN_BEDROCK?.trim()
   const bedrockRegion = context.env.BEDROCK_REGION?.trim() || "us-east-1"
   const openaiEndpoint = context.env.OPENAI_BASE_URL?.trim() || (bedrockApiKey ? bedrockMantleBaseUrl(bedrockRegion) : "https://api.openai.com/v1")
   const anthropicEndpoint =
-    context.env.ANTHROPIC_BASE_URL?.trim() || (bedrockApiKey ? bedrockAnthropicBaseUrl(bedrockRegion) : "https://api.anthropic.com/v1/messages")
+    context.env.ANTHROPIC_BASE_URL?.trim() || (bedrockApiKey ? bedrockRuntimeBaseUrl(bedrockRegion) : "https://api.anthropic.com/v1/messages")
   const moonshotEndpoint = context.env.MOONSHOT_BASE_URL?.trim() || bedrockMantleBaseUrl(bedrockRegion)
   const minimaxEndpoint = context.env.MINIMAX_BASE_URL?.trim() || bedrockMantleBaseUrl(bedrockRegion)
-  const openaiModel = context.env.OPENAI_MODEL_ID?.trim() || (isBedrockMantleBaseUrl(openaiEndpoint) ? "openai.gpt-oss-120b-1:0" : "gpt-4o")
+  const openaiModel = context.env.OPENAI_MODEL_ID?.trim() || (isBedrockMantleBaseUrl(openaiEndpoint) ? "openai.gpt-oss-120b" : "gpt-4o")
+  const resolvedOpenAiModel = isBedrockMantleBaseUrl(openaiEndpoint) ? openaiModel.replace(/-1:0$/, "") : openaiModel
   const anthropicModel =
-    context.env.ANTHROPIC_MODEL_ID?.trim() || (isBedrockMantleBaseUrl(anthropicEndpoint) ? "anthropic.claude-sonnet-4-6" : "claude-opus-4-1")
+    context.env.ANTHROPIC_MODEL_ID?.trim() || (isBedrockApiBaseUrl(anthropicEndpoint) ? "anthropic.claude-sonnet-4-6" : "claude-opus-4-1")
   const moonshotModel = context.env.MOONSHOT_MODEL_ID?.trim() || "moonshotai.kimi-k2.5"
   const minimaxModel = context.env.MINIMAX_MODEL_ID?.trim() || "minimax.minimax-m2.5"
   const googleModel = context.env.GOOGLE_MODEL_ID?.trim() || "gemini-2.5-pro"
@@ -667,10 +747,10 @@ function createModelCatalog(context: RegistryContext) {
 
   return {
     openai: {
-      id: openaiModel,
-      displayName: bedrockOpenAiDisplayName(openaiEndpoint, openaiModel),
+      id: resolvedOpenAiModel,
+      displayName: bedrockOpenAiDisplayName(openaiEndpoint, resolvedOpenAiModel),
       provider: "openai" as const,
-      modelVersion: openaiModel,
+      modelVersion: resolvedOpenAiModel,
       endpoint: openaiEndpoint,
       configured: openaiConfigured,
       setupHint:

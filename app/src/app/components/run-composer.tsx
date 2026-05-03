@@ -75,22 +75,26 @@ export function RunComposer({
     [models],
   )
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (selectedModelIds.length === 0) {
-      setSelectedModelIds(availableModelIds)
-      return
-    }
-
     setSelectedModelIds((current) => {
+      if (current.length === 0) {
+        return availableModelIds
+      }
       const pruned = current.filter((id) => availableModelIds.includes(id))
       return pruned.length > 0 ? pruned : availableModelIds
     })
-  }, [availableModelIds, selectedModelIds.length])
+  }, [availableModelIds])
 
   useEffect(() => {
-    if (models.some((model) => model.id === judgeModelId && model.available)) return
-    setJudgeModelId(models.find((model) => model.available)?.id ?? models[0]?.id ?? "mock-judge")
-  }, [judgeModelId, models])
+    setJudgeModelId((current) => {
+      if (models.some((model) => model.id === current && model.available)) {
+        return current
+      }
+      return models.find((model) => model.available)?.id ?? models[0]?.id ?? "mock-judge"
+    })
+  }, [models])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   function toggleTask(taskId: string) {
     setSelectedTaskIds((current) =>

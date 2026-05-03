@@ -187,10 +187,10 @@ describe("model adapters", () => {
     const calls: Array<{ url: string; init?: RequestInit }> = []
     const registry = createTestRegistry({
       env: {
-        OPENAI_MODEL_ID: "openai.gpt-oss-120b-1:0",
+        OPENAI_MODEL_ID: "openai.gpt-oss-120b",
         OPENAI_BASE_URL: "https://bedrock-mantle.us-east-1.api.aws/v1",
         ANTHROPIC_MODEL_ID: "anthropic.claude-sonnet-4-6",
-        ANTHROPIC_BASE_URL: "https://bedrock-mantle.us-east-1.api.aws/anthropic",
+        ANTHROPIC_BASE_URL: "https://bedrock-runtime.us-east-1.amazonaws.com",
         BEDROCK_API_KEY: "bedrock-test-key",
         MOONSHOT_MODEL_ID: "moonshotai.kimi-k2.5",
         MOONSHOT_BASE_URL: "https://bedrock-mantle.us-east-1.api.aws/v1",
@@ -209,22 +209,39 @@ describe("model adapters", () => {
           })
         }
 
+        if (String(input).includes("/converse")) {
+          return jsonResponse({
+            output: {
+              message: {
+                role: "assistant",
+                content: [{ text: "hello from bedrock anthropic" }],
+              },
+            },
+            stopReason: "end_turn",
+            usage: { inputTokens: 11, outputTokens: 5, totalTokens: 16 },
+            model: "anthropic.claude-sonnet-4-6",
+          })
+        }
+
         return jsonResponse({
-          content: [{ text: "hello from bedrock anthropic" }],
-          stop_reason: "end_turn",
-          usage: { input_tokens: 11, output_tokens: 5 },
-          model: "anthropic.claude-sonnet-4-6",
+          output: {
+            message: {
+              role: "assistant",
+              content: [{ text: "unexpected request" }],
+            },
+          },
+          stopReason: "end_turn",
         })
       },
       now: () => 1000,
     })
 
-    expect(registry.getAdapter("openai.gpt-oss-120b-1:0").available).toBe(true)
+    expect(registry.getAdapter("openai.gpt-oss-120b").available).toBe(true)
     expect(registry.getAdapter("anthropic.claude-sonnet-4-6").available).toBe(true)
     expect(registry.getAdapter("moonshotai.kimi-k2.5").available).toBe(true)
     expect(registry.getAdapter("minimax.minimax-m2.5").available).toBe(true)
 
-    const openaiResponse = await registry.getAdapter("openai.gpt-oss-120b-1:0").invoke("Say hello", {
+    const openaiResponse = await registry.getAdapter("openai.gpt-oss-120b").invoke("Say hello", {
       systemPrompt: "Be concise",
     })
     const anthropicResponse = await registry.getAdapter("anthropic.claude-sonnet-4-6").invoke("Say hello", {
@@ -242,10 +259,10 @@ describe("model adapters", () => {
       authorization: "Bearer bedrock-test-key",
       "content-type": "application/json",
     })
-    expect(calls[1]?.url).toBe("https://bedrock-mantle.us-east-1.api.aws/anthropic/messages")
+    expect(calls[1]?.url).toBe("https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-sonnet-4-6/converse")
     expect(calls[1]?.init?.headers).toMatchObject({
-      "x-api-key": "bedrock-test-key",
-      "anthropic-version": "2023-06-01",
+      authorization: "Bearer bedrock-test-key",
+      "content-type": "application/json",
     })
     expect(calls[2]?.url).toBe("https://bedrock-mantle.us-east-1.api.aws/v1/chat/completions")
     expect(calls[2]?.init?.headers).toMatchObject({
@@ -257,7 +274,7 @@ describe("model adapters", () => {
       authorization: "Bearer bedrock-test-key",
       "content-type": "application/json",
     })
-    expect(openaiResponse.content).toBe("hello from openai.gpt-oss-120b-1:0")
+    expect(openaiResponse.content).toBe("hello from openai.gpt-oss-120b")
     expect(anthropicResponse.content).toBe("hello from bedrock anthropic")
     expect(moonshotResponse.content).toBe("hello from moonshotai.kimi-k2.5")
     expect(minimaxResponse.content).toBe("hello from minimax.minimax-m2.5")

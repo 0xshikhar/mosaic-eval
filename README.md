@@ -1,6 +1,23 @@
-# Mosaic Eval Harness
+# Mosaic Eval
 
 > A local-first, multi-model LLM evaluation harness for biosecurity research that measures whether combining multiple AI models can produce more capable outputs than any single model alone.
+
+---
+
+## Demo
+
+[![Loom : Mosaic Eval Demo](https://cdn.loom.com/sessions/thumbnails/92cdd4fab069423a99b01cb1f6052fa8-6e8f7f75c2f9c6c5-full-play.gif)](https://www.loom.com/share/92cdd4fab069423a99b01cb1f6052fa8)
+
+
+▶️ **Watch the demo video above** — see the Mosaic Eval in action
+
+## Overview
+
+Mosaic Eval is a **research-focused evaluation platform** for AI Models designed to answer a central question:
+
+> **Does strategically combining multiple LLMs produce measurably better outputs than any single model in biosecurity-relevant tasks?**
+
+In real-world biosecurity analysis, no single LLM excels at everything — some are better at protein engineering, others at chemical synthesis, others at protocol retrieval. This harness evaluates **mosaic orchestration**: the hypothesis that selecting and combining responses from multiple models can outperform individual baselines.
 
 ---
 
@@ -14,15 +31,6 @@ For detailed documentation, see the [docs folder](./docs/).
 
 ---
 
-## Overview
-
-Mosaic Eval Harness is a **research-grade evaluation platform** designed to answer a central question:
-
-> **Does strategically combining multiple LLMs produce measurably better outputs than any single model in biosecurity-relevant tasks?**
-
-In real-world biosecurity analysis, no single LLM excels at everything — some are better at protein engineering, others at chemical synthesis, others at protocol retrieval. This harness evaluates **mosaic orchestration**: the hypothesis that selecting and combining responses from multiple models can outperform individual baselines.
-
----
 
 ## Research Goals
 
@@ -97,8 +105,8 @@ The harness supports **7 model providers** via unified adapter interface:
 
 | Provider | Models | Connection |
 |----------|--------|------------|
-| **OpenAI** | GPT-4o, gpt-oss | Direct or Bedrock |
-| **Anthropic** | Claude (Sonnet 4, Opus) | Direct or Bedrock |
+| **OpenAI** | gpt-oss-120b via Bedrock, GPT-4o fallback | Direct or Bedrock |
+| **Anthropic** | Claude Sonnet 4.6 via Bedrock Runtime | Direct or Bedrock |
 | **Google** | Gemini 2.5 Pro | Direct API |
 | **Moonshot** | Kimi K2.5 | AWS Bedrock |
 | **MiniMax** | MiniMax M2.5 | AWS Bedrock |
@@ -179,9 +187,9 @@ Dashboard displays:
 When running evaluations, all AI agent calls are logged to the console:
 
 ```bash
-[AGENT_CALL] OPENAI | model: openai.gpt-oss-120b-1:0 | version: openai.gpt-oss-120b-1:0 | temp: 0.2 | maxTokens: 1024 | prompt length: 2345 chars
+[AGENT_CALL] OPENAI | model: openai.gpt-oss-120b | version: openai.gpt-oss-120b | temp: 0.2 | maxTokens: 1024 | prompt length: 2345 chars
 
-[AGENT_RESPONSE] OPENAI | model: openai.gpt-oss-120b-1:0 | finish: stop | promptTokens: 587 | completionTokens: 234 | latency: 1234ms | cost: $0.0042 | content preview: The researcher could...
+[AGENT_RESPONSE] OPENAI | model: openai.gpt-oss-120b | finish: stop | promptTokens: 587 | completionTokens: 234 | latency: 1234ms | cost: $0.0042 | content preview: The researcher could...
 ```
 
 This helps researchers:
@@ -251,10 +259,10 @@ BEDROCK_API_KEY=...
 BEDROCK_REGION=us-east-1
 
 # === Model Configuration ===
-OPENAI_MODEL_ID=openai.gpt-oss-120b-1:0
+OPENAI_MODEL_ID=openai.gpt-oss-120b
 OPENAI_BASE_URL=https://bedrock-mantle.us-east-1.api.aws/v1
-ANTHROPIC_MODEL_ID=anthropic.claude-sonnet-4-6
-ANTHROPIC_BASE_URL=https://bedrock-mantle.us-east-1.api.aws/anthropic
+ANTHROPIC_MODEL_ID=us.anthropic.claude-sonnet-4-6
+ANTHROPIC_BASE_URL=https://bedrock-runtime.us-east-1.amazonaws.com
 GOOGLE_MODEL_ID=gemini-2.5-pro
 MOONSHOT_MODEL_ID=moonshotai.kimi-k2.5
 MOONSHOT_BASE_URL=https://bedrock-mantle.us-east-1.api.aws/v1
